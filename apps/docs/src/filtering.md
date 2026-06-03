@@ -1,6 +1,6 @@
 # Filtering
 
-Filtering is intentionally consumer-owned. The table provides controlled or uncontrolled filter state, but it does not prescribe whether filtering happens locally, on the server, through saved views, or through a domain-specific query builder.
+Filtering is consumer-owned. The table provides controlled or uncontrolled filter state, but it does not prescribe whether filtering happens locally, on the server, through saved views, or through a domain-specific query builder.
 
 ```tsx
 const [filters, setFilters] = useState({
@@ -35,7 +35,7 @@ const columns = [
 />;
 ```
 
-This keeps the package flexible for enterprise apps where filters may include search, multi-select, server-owned facets, date ranges, saved views, permissions, or domain-specific controls.
+This keeps filters open to search, multi-select, server-owned facets, date ranges, saved views, permissions, or domain-specific controls.
 
 Use `defaultFilters` when the table can own temporary filter UI state. Use `filters` with `onFiltersChange` when filters are part of the page URL, server query, saved view, or external form state.
 
@@ -45,7 +45,7 @@ The package owns the popover shell around each custom filter. Trigger buttons ex
 
 ## Quick Search
 
-Quick search is separate from column filters. It is designed for a toolbar search box that scans visible row data.
+Quick search is separate from column filters. Use it for toolbar search that scans visible row data.
 
 ```tsx
 <DataTable

@@ -1,6 +1,6 @@
 # Server Data and Async States
 
-The table can run entirely on client-side rows, but enterprise screens often use server-owned sorting, filtering, quick search, pagination, saved views, and refresh states. In those cases the host application owns fetch state and passes the current result window into `DataTable`.
+The table can run entirely on client-side rows. When sorting, filtering, quick search, pagination, saved views, or refresh states are server-owned, the host application owns fetch state and passes the current result window into `DataTable`.
 
 ## Manual Sorting and Filtering
 

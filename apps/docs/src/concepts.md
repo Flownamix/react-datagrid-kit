@@ -1,8 +1,8 @@
 # Core Concepts
 
-`DataTable` is a package-owned table shell around consumer-owned data and rendering. Use it when an application needs a dense enterprise grid with selection, sorting, filtering, saved-view column state, grouping, inline editing, responsive mobile rendering, and accessible keyboard behavior.
+`DataTable` is a package-owned table shell around consumer-owned data and rendering. Use it when an application needs selection, sorting, filtering, saved-view column state, grouping, inline editing, responsive mobile rendering, and accessible keyboard behavior.
 
-The package intentionally does not own your data source. Rows come from your application, and mutations go back through callbacks. TanStack Table powers the row model, sorting, filtering, selection, column visibility, column order, column sizing, and column pinning under the package API.
+The package does not own your data source. Rows come from your application, and mutations go back through callbacks. TanStack Table powers the row model, sorting, filtering, selection, column visibility, column order, column sizing, and column pinning under the package API.
 
 ## Required Shape
 
@@ -31,7 +31,7 @@ Most state supports the same pattern:
 - `x` plus `onXChange` makes the host application own state.
 - Passing `x={undefined}` for props that support undefined, such as `sort` and `editingCell`, is an explicit controlled empty state.
 
-Use uncontrolled defaults for simple pages and Storybook examples. Use controlled state for URL state, saved views, user preferences, server queries, or parent-owned grid shells.
+Use uncontrolled defaults when the table can own its state. Use controlled state for URL state, saved views, user preferences, server queries, or parent-owned grid shells.
 
 Common controlled state pairs:
 

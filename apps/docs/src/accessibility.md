@@ -21,5 +21,3 @@ Checklist:
 - Interactive content inside `renderCell`, `renderRowActions`, and `renderCard` can use native controls or common ARIA interactive roles without triggering row activation.
 - Use `data-rdtg-stop-row-click` on custom focusable widgets that should own click and keyboard events.
 - Use `motion="system"` by default and `motion="reduced"` for sensitive product areas.
-
-Run Storybook interaction checks for custom filters, row actions, grouping collapse, selection, and mobile cards before shipping a new table integration.

@@ -89,7 +89,7 @@ const columns = [
 
 Resizable columns expose always-visible desktop resize separators. Pointer drag, ArrowLeft/ArrowRight, Shift+ArrowLeft/Shift+ArrowRight, Home, and End update the same column sizing state.
 
-Use pixel sizing for pinned columns. Sticky offsets can fall back to default widths for flexible tracks, but saved enterprise views should store pixel widths for predictable pinning.
+Use pixel sizing for pinned columns. Sticky offsets can fall back to default widths for flexible tracks, but persisted pinned layouts should store pixel widths for predictable pinning.
 
 ## Pinning
 

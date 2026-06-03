@@ -41,7 +41,7 @@ export function AccountsTable({ rows }: { rows: Account[] }) {
 }
 ```
 
-The API deliberately keeps rendering in consumer code. The table owns layout, selection, sort wiring, grouping, responsive behavior, motion, and accessibility mechanics.
+The API keeps rendering in consumer code. The table owns layout, selection, sort wiring, grouping, responsive behavior, motion, and accessibility mechanics.
 
 Read `/concepts` after this page for the ownership model. The short version: use uncontrolled `defaultX` props for simple table-owned state, and controlled `x` plus `onXChange` props when URL state, saved views, server queries, or parent components own state.
 
@@ -53,7 +53,7 @@ For selection, pass `onSelectedIdsChange` when users should be able to change se
 
 Use `renderToolbar` and `renderFooter` when a screen needs bulk actions, result summaries, or pagination controls that can read the table's modeled state without duplicating selection, filter, and sort calculations.
 
-Use `toolbar` for package-owned standard controls. `toolbar={true}` renders quick search and column controls; configure `toolbar.quickSearch`, `toolbar.columnVisibility`, `toolbar.renderActions`, and `toolbar.renderSummary` when a screen needs host actions inside the same first-class control bar. Quick search can be controlled with `quickSearch` and `onQuickSearchChange`, initialized with `defaultQuickSearch`, and is local TanStack global filtering unless `manualFiltering` is enabled.
+Use `toolbar` for package-owned standard controls. `toolbar={true}` renders quick search and column controls; configure `toolbar.quickSearch`, `toolbar.columnVisibility`, `toolbar.renderActions`, and `toolbar.renderSummary` when a screen needs host actions in the same control bar. Quick search can be controlled with `quickSearch` and `onQuickSearchChange`, initialized with `defaultQuickSearch`, and is local TanStack global filtering unless `manualFiltering` is enabled.
 
 For server-paged data, keep page state and fetching in your application. Pass `totalRowCount` and zero-based `rowIndexOffset` so footer slots and desktop ARIA metadata describe the full result set while the table renders the loaded `rows`.
 
@@ -63,7 +63,7 @@ Use `defaultColumnOrder` for table-owned saved-view ordering, or `columnOrder` w
 
 Use `defaultColumnSizing` for table-owned widths, or `columnSizing` with `onColumnSizingChange` when saved views, URL state, or user preferences own resizable column widths. Set `resizable: true` on columns that should expose desktop resize handles, and use `minWidth`/`maxWidth` to keep the layout inside practical bounds.
 
-Use `defaultColumnPinning` for table-owned saved-view pins, or `columnPinning` with `onColumnPinningChange` when a parent application persists pinned columns. Pinning is TanStack-backed and reorders visible columns into left, center, and right regions. Desktop cells use native sticky positioning in the table scroll frame; pair pinned columns with pixel sizing for the most predictable offsets in horizontally scrollable enterprise tables.
+Use `defaultColumnPinning` for table-owned saved-view pins, or `columnPinning` with `onColumnPinningChange` when a parent application persists pinned columns. Pinning is TanStack-backed and reorders visible columns into left, center, and right regions. Desktop cells use native sticky positioning in the table scroll frame; pair pinned columns with pixel sizing for predictable offsets in horizontally scrollable tables.
 
 For inline editing, add `editable`, `getEditValue`, and `renderEditCell` to the editable column, then persist changes in `onCellEditCommit`. Editors can be simple inline controls such as text inputs or selects; they do not need a popover when the value is a compact enum. The table owns the editing interaction state, focuses the editor on open, supports Escape cancel and Ctrl/Cmd+Enter commit, keeps async saves pending in-place, and renders returned or thrown validation errors without mutating your row data. If the edited row or column leaves the visible model, stale drafts and async commits are discarded. Built-in mobile fields use the same editing contract; custom `renderCard` content owns its own mobile edit UI.
 
