@@ -4,6 +4,11 @@
   "description": "Enterprise React data table components for dense product workflows.",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Flownamix/react-datagrid-kit.git"
+  },
+  "homepage": "https://flownamix.github.io/react-datagrid-kit/",
   "sideEffects": [
     "./dist/styles.css",
     "./dist/tokens.css"
