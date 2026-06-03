@@ -15,6 +15,10 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "verify:package": "pnpm --filter @flownamix/react-data-grid-kit verify:package",
+    "version:bump": "node scripts/bump-version.mjs",
+    "version:patch": "pnpm version:bump patch",
+    "version:minor": "pnpm version:bump minor",
+    "version:major": "pnpm version:bump major",
     "changeset": "changeset"
   },
   "devDependencies": {
