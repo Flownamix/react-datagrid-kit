@@ -3,6 +3,7 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   title: "React Data Grid Kit",
   description: "Enterprise React data table package documentation.",
+  base: "/react-datagrid-kit/",
   cleanUrls: true,
   themeConfig: {
     nav: [
