@@ -8,7 +8,7 @@ Required props:
 - `columns: DataTableColumn<T>[]`
 - `getRowId: (row: T) => string`
 
-The base row model, sorting pipeline, and row-selection state are powered by TanStack Table. The public API remains package-specific so consumers do not need to wire TanStack directly for standard enterprise table screens.
+The base row model, sorting pipeline, and row-selection state are powered by TanStack Table. The public API remains package-specific so consumers do not need to wire TanStack directly for standard table screens.
 
 Core integration props:
 
@@ -118,7 +118,7 @@ First-class toolbar:
 
 - `toolbar={true}` renders quick search, column controls, and no host actions. Configure `toolbar.quickSearch` or `toolbar.columnVisibility` as `false` to remove either standard control.
 - `toolbar.quickSearch` accepts `{ label, placeholder, clearLabel }`. The value is backed by `quickSearch`, `defaultQuickSearch`, and `onQuickSearchChange`, and is also exposed to custom slots as `quickSearch` and `setQuickSearch`.
-- Local quick search is TanStack global filtering. Columns can provide `quickSearchText` for arbitrary templates, rely on `sortAccessor`, or fall back to simple text rendered by `renderCell`. Set `quickSearchable: false` to exclude a column.
+- Local quick search is TanStack global filtering. Columns can provide `quickSearchText` for custom cell templates, rely on `sortAccessor`, or fall back to simple text rendered by `renderCell`. Set `quickSearchable: false` to exclude a column.
 - With `manualFiltering`, quick search remains visible state but does not filter the supplied `rows`; use `onQuickSearchChange` to update server query state and feed the next page of rows back into the table.
 - `toolbar.columnVisibility` accepts `{ label, resetLabel, emptyLabel, columnIds, allowHideAll }`. The menu updates the same TanStack-backed column visibility state as `defaultColumnVisibility`, `columnVisibility`, and `setColumnVisibility`.
 - Set `hideable: false` on columns that should never appear in the built-in column-controls menu.
@@ -211,7 +211,7 @@ Column pinning:
 - Pinned desktop data columns are reordered into left, center, and right regions using TanStack's visible leaf column model. Built-in mobile fields receive the same visible column order; custom `renderCard` content remains app-owned.
 - Desktop pinning uses native sticky positioning inside the table's scroll frame, so body cells stay locked without scroll-linked transform updates.
 - When left data columns are pinned, the selection column becomes sticky so pinned cells do not cover row checkboxes. When right data columns are pinned, the actions column becomes sticky for the same reason.
-- Sticky offsets are calculated from column sizing state and pixel `width` values. For non-pixel flexible tracks, the table falls back to the package's default column width, so production saved views should pair pinning with pixel sizing for the pinned columns.
+- Sticky offsets are calculated from column sizing state and pixel `width` values. For non-pixel flexible tracks, the table falls back to the package's default column width, so persisted pinned layouts should pair pinning with pixel sizing for the pinned columns.
 - `renderToolbar` receives `columnPinning` and `setColumnPinning` so a host can render saved-view pin presets, clear actions, or persistence controls without duplicating package state.
 
 State panels:
@@ -265,7 +265,7 @@ Column notes:
 - `className` is applied to desktop data cells for that column. Use it for narrow semantic styling hooks, not domain layout.
 - `hideOnMobile` removes the column from the built-in mobile field layout. It does not affect custom `renderCard` content.
 
-Filter render functions receive `{ value, filters, setFilter, clearFilter, close }`. Values are arbitrary, so apps can store date ranges, server facet objects, saved-view IDs, or multi-field query models instead of being limited to predefined option lists.
+Filter render functions receive `{ value, filters, setFilter, clearFilter, close }`. Values can store date ranges, server facet objects, saved-view IDs, or multi-field query models instead of being limited to predefined option lists.
 
 Filter trigger buttons expose `aria-expanded`, `aria-controls`, and active state. Open filter content is rendered as a labelled dialog, focuses the first reachable custom control, closes on Escape or outside interaction, and returns focus to the trigger.
 

@@ -1,6 +1,6 @@
 # Grouping
 
-Groups are designed for real operational data, not only static demo buckets.
+Use groups when rows need section headers, collapse state, group-level metadata, or server-side completeness indicators.
 
 ```tsx
 <DataTable
@@ -10,7 +10,7 @@ Groups are designed for real operational data, not only static demo buckets.
   groups={[
     {
       id: "priority",
-      label: "Priority enterprise accounts",
+      label: "Priority accounts",
       rowIds: ["acc-001", "acc-004"],
       totalCount: 18,
       loadedCount: 2,
@@ -81,7 +81,7 @@ Use group metadata to avoid misleading users when only part of a server group is
 }
 ```
 
-Use `state="error"` for group-level integration failures and `state="empty"` for groups that are intentionally empty. Use `depth` when rendering hierarchical group levels.
+Use `state="error"` for group-level integration failures and `state="empty"` for known-empty groups. Use `depth` when rendering hierarchical group levels.
 
 ## Custom Group Headers
 

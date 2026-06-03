@@ -2,7 +2,7 @@
 
 The package has two toolbar paths:
 
-- `toolbar` renders first-class package controls for common table tasks.
+- `toolbar` renders package controls for common table tasks.
 - `renderToolbar` renders a fully app-owned control area with access to the modeled table state.
 
 Use `renderFooter` for pagination, result summaries, totals, and secondary metadata below the table.
@@ -74,7 +74,7 @@ Disable a standard control by setting it to `false`:
 
 Quick search uses `quickSearch`, `defaultQuickSearch`, and `onQuickSearchChange`.
 
-In local filtering mode, quick search filters the supplied `rows`. A column participates unless `quickSearchable` is `false`. For arbitrary templates, provide `quickSearchText`:
+In local filtering mode, quick search filters the supplied `rows`. A column participates unless `quickSearchable` is `false`. For custom cell templates, provide `quickSearchText`:
 
 ```tsx
 const columns = [

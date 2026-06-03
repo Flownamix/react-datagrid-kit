@@ -10,7 +10,7 @@ import "@flownamix/react-data-grid-kit/styles.css";
 
 ## Filters are too simple
 
-Pass a real React control to `filterControl`. The table does not own filtering state because enterprise products often need server facets, date ranges, permissions, and saved views.
+Pass a React control to `filterControl`. The table does not own filtering state, so filters can include server facets, date ranges, permissions, saved views, or app-specific query controls.
 
 ## Dense rows clip custom content
 
@@ -34,7 +34,7 @@ The column may have `hideable: false`, or `toolbar.columnVisibility.columnIds` m
 
 ## Pinned columns overlap or use odd offsets
 
-Pair pinned columns with pixel sizing through `defaultColumnSizing` or controlled `columnSizing`. Flexible CSS tracks can render, but saved enterprise views should store pixel widths so sticky offsets are predictable.
+Pair pinned columns with pixel sizing through `defaultColumnSizing` or controlled `columnSizing`. Flexible CSS tracks can render, but persisted pinned layouts should store pixel widths so sticky offsets are predictable.
 
 ## Resize handles are missing
 
@@ -42,7 +42,7 @@ Only columns with `resizable: true` render resize separators. Hidden columns do 
 
 ## Inline edits disappear while saving
 
-The edited row or column probably left the visible model because of filtering, column visibility, grouping collapse, or refreshed editability. The table intentionally clears the editor and ignores stale async commits in that case.
+The edited row or column probably left the visible model because of filtering, column visibility, grouping collapse, or refreshed editability. The table clears the editor and ignores stale async commits in that case.
 
 ## Controlled state callbacks fire but UI does not change
 
@@ -51,7 +51,3 @@ For controlled props, callbacks request a state change but the table waits for t
 ## Mobile cards ignore column visibility
 
 Built-in mobile fields honor column visibility. Custom `renderCard` content is app-owned, so it must read the same saved-view state in the host if cards should hide or reorder fields.
-
-## Storybook looks right but docs are unclear
-
-Treat Storybook as visual documentation and VitePress as canonical integration documentation. Add long-form guidance to VitePress first, then keep Storybook descriptions short and example-driven.

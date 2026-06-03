@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: React Data Grid Kit
-  text: Enterprise table components for dense React workflows
-  tagline: Generic API, arbitrary cell templates, real filter controls, grouped operational data, and accessible responsive rendering.
+  text: React table components for data-heavy workflows
+  tagline: Typed columns, custom cell templates, filter controls, grouped rows, and accessible responsive rendering.
 actions:
   - theme: brand
     text: Quick Start
@@ -14,12 +14,12 @@ actions:
 features:
   - title: Integration-first API
     details: Start with the core concepts, then compose toolbar controls, saved views, server data, editing, and responsive rendering.
-  - title: Real grouped data
+  - title: Grouped row states
     details: Groups support row ids, direct rows, partial loads, progress, states, summaries, and controlled collapse.
   - title: Durable package contracts
     details: Controlled and uncontrolled state patterns are documented for sorting, filters, quick search, column state, editing, selection, and groups.
-  - title: Lean Storybook companion
-    details: Storybook stays visual and example-driven while this site remains the canonical documentation source.
+  - title: API reference
+    details: Props, types, slots, and state updaters are documented alongside the workflow guides that use them.
 ---
 
 ## Documentation Map
@@ -35,4 +35,4 @@ Use the workflow guides for implementation:
 - `/responsive-rendering` for built-in mobile fields and custom mobile cards.
 - `/headless` for model helpers used by saved-view stores, adapters, and tests.
 
-Use `/api` as the canonical prop and type reference after the workflow is clear.
+Use `/api` as the prop and type reference after the workflow is clear.
