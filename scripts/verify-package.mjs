@@ -21,8 +21,8 @@ const requiredFiles = [
 
 const failures = [];
 
-if (packageJson.license !== "UNLICENSED") {
-  failures.push("package.json must use license \"UNLICENSED\" until legal selects a final license.");
+if (packageJson.license !== "MIT") {
+  failures.push("package.json must use license \"MIT\".");
 }
 
 for (const file of ["README.md", "LICENSE", "dist"]) {

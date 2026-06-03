@@ -2,7 +2,7 @@
   "name": "@flownamix/react-data-grid-kit",
   "version": "0.1.0",
   "description": "Enterprise React data table components for dense product workflows.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "sideEffects": [
     "./dist/styles.css",
@@ -48,7 +48,7 @@
     "react-dom": "^19.2.0"
   },
   "publishConfig": {
-    "access": "restricted",
+    "access": "public",
     "provenance": true
   }
 }

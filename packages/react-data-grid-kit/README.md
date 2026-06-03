@@ -85,8 +85,6 @@ import { nextSort, rowMatchesQuickSearch } from "@flownamix/react-data-grid-kit/
 
 The package also exports `tokens.css` for token-only theme integration.
 
-## License Status
+## License
 
-This package is currently `UNLICENSED` and prepared for private/internal
-evaluation only. Do not publish publicly or grant production redistribution
-rights until legal selects the final license.
+MIT
