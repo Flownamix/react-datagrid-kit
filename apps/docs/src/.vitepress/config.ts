@@ -10,6 +10,9 @@ export default defineConfig({
       { text: "Guide", link: "/quick-start" },
       { text: "API", link: "/api" }
     ],
+    socialLinks: [
+      { icon: "github", link: "https://github.com/Flownamix/react-datagrid-kit" }
+    ],
     sidebar: [
       {
         text: "Guide",

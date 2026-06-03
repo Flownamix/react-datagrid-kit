@@ -3,6 +3,8 @@
 Enterprise-grade React data table primitives and styled components for dense
 product workflows.
 
+Documentation: https://flownamix.github.io/react-datagrid-kit/
+
 ## Product Package
 
 - A typed React data table package for operational product screens.
