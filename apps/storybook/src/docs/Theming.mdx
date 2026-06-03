@@ -1,0 +1,23 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Docs/Theming" />
+
+# Theming
+
+The table ships with CSS custom properties for surface colors, borders, typography, row density, and motion timing. Override tokens in your app shell or wrap a region with `rdtg-theme-dark`. Group collapse/expand uses `--rdtg-motion-collapse`, defaulting to a calmer 500ms transition.
+
+```css
+.crm-shell {
+  --rdtg-color-primary: #0f766e;
+  --rdtg-color-surface: #ffffff;
+  --rdtg-radius-md: 6px;
+}
+```
+
+Useful stories:
+
+- [Enterprise accounts](?path=/story/components-datatable-enterprise--enterprise-accounts)
+- [Dense rows](?path=/story/components-datatable-enterprise--dense-rows-with-arbitrary-templates)
+- [Reduced motion](?path=/story/components-datatable-enterprise--reduced-motion)
+
+Keep full token tables and theme recipes in VitePress `/theming`.

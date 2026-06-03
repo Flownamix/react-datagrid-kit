@@ -1,0 +1,58 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Docs/Quick Start" />
+
+# Quick Start
+
+Install the package and import the table once in your React app.
+
+```tsx
+import { DataTable, type DataTableColumn } from "@flownamix/react-data-grid-kit";
+import "@flownamix/react-data-grid-kit/styles.css";
+
+type Account = { id: string; name: string; owner: string };
+
+const columns: Array<DataTableColumn<Account>> = [
+  {
+    id: "name",
+    header: "Account",
+    sortable: true,
+    sortAccessor: (row) => row.name,
+    renderCell: (row) => <strong>{row.name}</strong>
+  },
+  {
+    id: "owner",
+    header: "Owner",
+    renderCell: (row) => row.owner
+  }
+];
+
+<DataTable
+  rows={rows}
+  columns={columns}
+  getRowId={(row) => row.id}
+  ariaLabel="Accounts"
+  toolbar
+  defaultSort={{ columnId: "name", direction: "ascending" }}
+/>;
+```
+
+See VitePress `/quick-start` for installation, package exports, CSS setup, and integration notes.
+
+Selection is mutable only when `onSelectedIdsChange` is provided. Passing `selectedIds` alone displays a read-only selection state.
+
+Local sorting requires `sortable: true` plus `sortAccessor`. Header clicks cycle ascending, descending, and no sort. Use `sort`, `onSortChange`, and `manualSorting` together when a server or parent app owns row order; controlled integrations receive `onSortChange(undefined)` when users clear the active sort.
+
+Use `isRowSelectable` when only some rows can be selected. Disabled rows remain visible and select-all skips them.
+
+Provide `ariaLabel` or `ariaLabelledBy` so the desktop grid and mobile list have an accessible name.
+
+Use `toolbar` for package-owned quick search and column controls. Configure `toolbar.quickSearch`, `toolbar.columnVisibility`, `toolbar.renderActions`, and `toolbar.renderSummary` when host actions should live in the same first-class control bar. Quick search can be controlled with `quickSearch` and `onQuickSearchChange`, and it stays server-owned when `manualFiltering` is enabled.
+
+Use `renderToolbar` and `renderFooter` for fully app-owned controls such as custom saved-view managers, result summaries, and pagination.
+
+Filters can be controlled with `filters` and `onFiltersChange`, or initialized with `defaultFilters`. Filter values are arbitrary objects, so examples can model real enterprise controls such as date ranges, facets, saved views, and server query state.
+
+Column visibility, ordering, sizing, and pinning are TanStack-backed package state. Use the uncontrolled defaults for table-owned saved views, or the controlled props, built-in toolbar controls, and slot setters when a parent app persists user preferences. Enable desktop header drag handles with `enableColumnReordering` when users should be able to customize column order directly.
+
+Inline editing is opt-in per column with `editable`, `getEditValue`, and `renderEditCell`. Editors can be compact inline controls such as text inputs, selects, or icon-button actions; they do not need a popover for simple enum values. Async commits stay pending in the editor, and returned or thrown validation errors render inline with an `errorId` that custom controls can use for `aria-describedby`. Built-in mobile fields use the same behavior; custom `renderCard` content owns its own mobile edit UI. Persist committed values through `onCellEditCommit`; the table does not mutate row data for you.

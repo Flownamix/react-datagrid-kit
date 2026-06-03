@@ -1,0 +1,23 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Docs/Icons" />
+
+# Icons
+
+Consumers can replace built-in table icons with the `icons` prop. Provide only the icons you need to override; defaults are merged internally.
+
+```tsx
+<DataTable
+  rows={rows}
+  columns={columns}
+  getRowId={(row) => row.id}
+  icons={{
+    Filter: CustomFilterIcon,
+    Expand: CustomExpandIcon
+  }}
+/>;
+```
+
+Use the [Enterprise accounts story](?path=/story/components-datatable-enterprise--enterprise-accounts) to inspect sort, filter, loading, expand, and row-action icon placement.
+
+Keep full icon contracts in VitePress `/icons`.

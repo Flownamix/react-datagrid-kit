@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+output/
+.playwright-cli/
+*.log
+**/storybook-static/
+**/.vitepress/cache/
+**/.vitepress/dist/
+.env
+.env.*
+!.env.example

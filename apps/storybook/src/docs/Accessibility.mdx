@@ -1,0 +1,30 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Docs/Accessibility" />
+
+# Accessibility
+
+Practical checklist:
+
+- Provide `ariaLabel` or `ariaLabelledBy` so both responsive table surfaces have an accessible name.
+- Provide `rowAriaLabel` when visible cells do not fully identify a row.
+- Desktop grid focus enters the first visible cell; arrow keys move between visible cells; Space toggles focused package-owned selection/group controls; F2 or Enter opens editable cells.
+- Keep custom `filterControl` content labelled and keyboard reachable.
+- Keep inline edit controls labelled and include clear save/cancel actions. Editors receive initial focus, Escape cancels, and Ctrl+Enter or Cmd+Enter commits.
+- Use `pending` and `error` in custom editors so async saves and validation failures remain understandable to keyboard and screen reader users.
+- Built-in mobile fields use the same edit behavior; custom `renderCard` content should include equivalent mobile edit controls when needed.
+- Use semantic buttons for row actions and group actions.
+- Put interactive content directly inside `renderCell`, `renderRowActions`, and `renderCard`; those controls are protected from accidental row activation.
+- Add `data-rdtg-stop-row-click` to custom focusable widgets that should fully own pointer and keyboard events.
+- Preserve focus outlines when overriding styles.
+- Use `renderCard` for mobile when the tabular columns need a different reading order.
+- Respect reduced motion with `motion="system"` or force `motion="reduced"` for sensitive contexts.
+
+Use these stories for spot checks:
+
+- [Grouping at scale](?path=/story/components-datatable-enterprise--grouping-at-scale)
+- [Keyboard navigation](?path=/story/components-datatable-enterprise--keyboard-navigation)
+- [Async inline editing](?path=/story/components-datatable-enterprise--async-inline-editing)
+- [Loading state](?path=/story/components-datatable-enterprise--loading-state)
+
+Keep the full accessibility guide and testing matrix in VitePress `/accessibility`.

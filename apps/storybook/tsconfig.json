@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@flownamix/react-data-grid-kit": ["../../packages/react-data-grid-kit/src/index.ts"],
+      "@flownamix/react-data-grid-kit/headless": ["../../packages/react-data-grid-kit/src/headless.ts"]
+    },
+    "types": ["vite/client"]
+  },
+  "include": [".storybook", "src"]
+}

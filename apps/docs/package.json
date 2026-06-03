@@ -1,0 +1,21 @@
+{
+  "name": "@flownamix/react-data-grid-kit-docs",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev src --host 127.0.0.1 --port 5173",
+    "docs:build": "vitepress build src",
+    "docs:preview": "vitepress preview src --host 127.0.0.1 --port 4173",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "vitepress": "^2.0.0-alpha.15",
+    "vue": "^3.5.25"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.7"
+  }
+}
