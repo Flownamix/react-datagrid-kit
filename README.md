@@ -3,12 +3,6 @@
 Enterprise-grade React data table primitives and styled components for dense
 product workflows.
 
-The product in this repository is the private Flownamix package
-`@flownamix/react-data-grid-kit`.
-
-The docs and Storybook apps are development workspaces. They exist to help build,
-review, test, and explain the package; they are not part of the shipped product.
-
 ## Product Package
 
 - A typed React data table package for operational product screens.
@@ -95,23 +89,9 @@ pnpm build
 pnpm verify:package
 ```
 
-The repository ignores generated outputs such as `node_modules`, package
-`dist`, Storybook static output, VitePress output, Playwright artifacts, logs,
-and local environment files.
-
 ## Development References
 
 - Root package README: `packages/react-data-grid-kit/README.md`
 - Package development docs: `apps/docs/src`
 - Visual review examples: `apps/storybook/src`
 - Contribution notes: `CONTRIBUTING.md`
-
-## Package Status
-
-This package is currently `UNLICENSED` and prepared for private/internal
-evaluation only. Do not publish publicly or grant production redistribution
-rights until legal selects the final license.
-
-Publishing is configured as restricted package access with provenance enabled.
-Run `pnpm verify:package` after `pnpm build` to confirm package export targets
-exist before preparing a release candidate.
