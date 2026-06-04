@@ -11,10 +11,16 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@flownamix/react-data-grid-kit": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "vitepress": "^2.0.0-alpha.15",
     "vue": "^3.5.25"
   },
   "devDependencies": {
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.7"
   }

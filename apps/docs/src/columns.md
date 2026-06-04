@@ -144,3 +144,5 @@ function AccountsGrid({ rows, savedView, onSavedViewChange }) {
 ```
 
 Keep saved view objects keyed by stable column ids. When a column is removed from the schema, stale ids are ignored by the visible column model.
+
+<LiveDataTableExample name="saved-views" />

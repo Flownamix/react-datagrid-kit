@@ -1,3 +1,5 @@
+import { fileURLToPath, URL } from "node:url";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
@@ -5,9 +7,25 @@ export default defineConfig({
   description: "React data table package documentation.",
   base: "/react-datagrid-kit/",
   cleanUrls: true,
+  vite: {
+    plugins: [react()],
+    resolve: {
+      alias: [
+        {
+          find: "@flownamix/react-data-grid-kit/headless",
+          replacement: fileURLToPath(new URL("../../../../packages/react-data-grid-kit/src/headless.ts", import.meta.url))
+        },
+        {
+          find: "@flownamix/react-data-grid-kit",
+          replacement: fileURLToPath(new URL("../../../../packages/react-data-grid-kit/src/index.ts", import.meta.url))
+        }
+      ]
+    }
+  },
   themeConfig: {
     nav: [
       { text: "Guide", link: "/quick-start" },
+      { text: "Examples", link: "/examples" },
       { text: "API", link: "/api" }
     ],
     socialLinks: [
@@ -19,6 +37,7 @@ export default defineConfig({
         items: [
           { text: "Overview", link: "/" },
           { text: "Quick Start", link: "/quick-start" },
+          { text: "Examples", link: "/examples" },
           { text: "Core Concepts", link: "/concepts" },
           { text: "Toolbar and Slots", link: "/toolbar-and-slots" },
           { text: "Columns and Saved Views", link: "/columns" },

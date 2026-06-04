@@ -43,6 +43,8 @@ export function AccountsTable({ rows }: { rows: Account[] }) {
 
 The API keeps rendering in consumer code. The table owns layout, selection, sort wiring, grouping, responsive behavior, motion, and accessibility mechanics.
 
+<LiveDataTableExample name="quick-start" />
+
 Read `/concepts` after this page for the ownership model. The short version: use uncontrolled `defaultX` props for simple table-owned state, and controlled `x` plus `onXChange` props when URL state, saved views, server queries, or parent components own state.
 
 Use `defaultSort` when the table can manage sorting internally. Local sorting requires a column `sortAccessor`. Header clicks cycle ascending, descending, and no sort; clearing sort restores the supplied row order in uncontrolled local mode.

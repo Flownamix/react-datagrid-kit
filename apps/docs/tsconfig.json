@@ -3,7 +3,12 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@flownamix/react-data-grid-kit": ["../../packages/react-data-grid-kit/src/index.ts"],
+      "@flownamix/react-data-grid-kit/headless": ["../../packages/react-data-grid-kit/src/headless.ts"]
+    },
     "types": ["vite/client"]
   },
-  "include": ["src/.vitepress/**/*.ts"]
+  "include": ["src/**/*.d.ts", "src/.vitepress/**/*.ts", "src/examples/**/*.ts", "src/examples/**/*.tsx"]
 }

@@ -70,6 +70,8 @@ Disable a standard control by setting it to `false`:
 />
 ```
 
+<LiveDataTableExample name="toolbar-filtering" />
+
 ## Quick Search
 
 Quick search uses `quickSearch`, `defaultQuickSearch`, and `onQuickSearchChange`.

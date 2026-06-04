@@ -46,6 +46,8 @@ Persist changes in `onCellEditCommit`:
 
 The table does not mutate rows. Update your local store, server cache, or query result after validation succeeds.
 
+<LiveDataTableExample name="inline-editing" />
+
 The edit lifecycle types are exported for shared column factories and server adapters:
 
 - `DataTableCellEdit` describes the currently edited `{ rowId, columnId }`.

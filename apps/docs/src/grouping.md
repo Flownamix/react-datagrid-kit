@@ -26,6 +26,8 @@ Use `rowIds` when groups are produced by a server query and `rows` when the grou
 
 Desktop and mobile render from the same grouped visibility model. Collapse state, partial/error states, counts, progress, and selected rows remain visible on mobile.
 
+<LiveDataTableExample name="grouping" />
+
 Desktop collapse and expand motion is tied to the grouped visibility model. When a group collapses, rows leave the live model immediately and the desktop body keeps short-lived inert visual exits for the configured collapse duration, so app state, keyboard targets, and screen-reader metadata update without a visual snap. Use `motion="reduced"` to skip those transient exits.
 
 Use `renderGroupHeader` and `renderMobileGroupHeader` when a grouped workflow needs a custom header layout. Both callbacks receive `(group, summary, context)`, where `context` includes `collapsed`, `collapsible`, `icons`, and `toggle`, so custom headers can keep the table's built-in collapse behavior.

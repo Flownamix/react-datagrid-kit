@@ -50,6 +50,8 @@ Use `renderCard` when the mobile reading order needs a domain-specific layout:
 
 When `renderCard` is supplied, mobile card content is fully app-owned. It does not automatically hide fields based on `columnVisibility`; read controlled saved-view state in the host if custom cards should mirror desktop column controls.
 
+<LiveDataTableExample name="responsive" />
+
 ## Row Activation and Interactive Content
 
 `onRowClick` makes desktop rows and mobile cards keyboard reachable. Native interactive descendants do not trigger row activation:

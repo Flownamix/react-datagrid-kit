@@ -43,6 +43,8 @@ Local filtering is opt-in. Add `filterFn` to a column when TanStack should apply
 
 The package owns the popover shell around each custom filter. Trigger buttons expose expanded and active state, the popover is a labelled dialog with a styled header and form-control defaults, focus moves into the custom control when it opens, and Escape returns focus to the trigger.
 
+<LiveDataTableExample name="toolbar-filtering" />
+
 ## Quick Search
 
 Quick search is separate from column filters. Use it for toolbar search that scans visible row data.
