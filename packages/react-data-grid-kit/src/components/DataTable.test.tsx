@@ -2386,6 +2386,47 @@ describe("DataTable", () => {
     }
   });
 
+  it("keeps desktop group items mounted by identity so surrounding rows animate position changes", () => {
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        groups={[
+          {
+            id: "active",
+            label: "Active accounts",
+            rowIds: ["1"]
+          },
+          {
+            id: "review",
+            label: "Review accounts",
+            rowIds: ["2"]
+          }
+        ]}
+        motion="always"
+      />
+    );
+    const desktopFrame = container.querySelector(".rdtg-desktopFrame") as HTMLElement;
+    const activeToggle = within(desktopFrame).getByRole("button", { name: /Active accounts/ });
+    const reviewItemBefore = within(desktopFrame)
+      .getByRole("button", { name: /Review accounts/ })
+      .closest(".rdtg-virtualItem") as HTMLElement;
+
+    expect(reviewItemBefore).toHaveStyle({ top: "104px" });
+
+    fireEvent.click(activeToggle);
+
+    const reviewItemAfter = within(desktopFrame)
+      .getByRole("button", { name: /Review accounts/ })
+      .closest(".rdtg-virtualItem") as HTMLElement;
+
+    expect(reviewItemAfter).toBe(reviewItemBefore);
+    expect(reviewItemAfter).toHaveStyle({ top: "48px" });
+    expect(reviewItemAfter).toHaveStyle({ transform: "translateY(56px)" });
+    expect(reviewItemAfter).toHaveAttribute("data-layout-motion", "true");
+  });
+
   it("skips collapsing row exits when reduced motion is requested", () => {
     const { container } = render(
       <DataTable

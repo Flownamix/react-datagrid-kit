@@ -82,7 +82,9 @@ export function DataTableDesktopBody<T>({
   visibleItems,
   virtualItems
 }: DataTableDesktopBodyProps<T>): React.ReactElement {
-  const exitingRows = useExitingCollapsedRows({ collapsedGroupIds, motion, visibleItems, virtualItems });
+  const prefersReducedMotion = usePrefersReducedMotion(motion);
+  const layoutMotion = useVirtualItemLayoutMotion({ prefersReducedMotion, visibleItems, virtualItems });
+  const exitingRows = useExitingCollapsedRows({ collapsedGroupIds, prefersReducedMotion, visibleItems, virtualItems });
 
   return (
     <div className="rdtg-viewport" aria-busy={loading ? "true" : "false"}>
@@ -99,14 +101,20 @@ export function DataTableDesktopBody<T>({
             if (!item) {
               return null;
             }
+            const itemKey = visibleItemKey(item);
+            const itemLayoutMotion = layoutMotion.items.get(itemKey);
 
             return (
               <div
-                key={virtualItem.key}
+                key={itemKey}
                 className="rdtg-virtualItem"
-                style={{ top: `${virtualItem.start}px` }}
+                style={{
+                  top: `${virtualItem.start}px`,
+                  transform: itemLayoutMotion ? `translateY(${itemLayoutMotion.offset}px)` : undefined
+                }}
                 data-index={virtualItem.index}
                 data-kind={item.kind}
+                data-layout-motion={itemLayoutMotion ? "true" : undefined}
               >
                 {item.kind === "group" ? (
                   <DataTableGroupRow
@@ -194,18 +202,113 @@ interface ExitingCollapsedRow<T> {
   start: number;
 }
 
+interface VirtualItemLayoutMotion {
+  offset: number;
+}
+
+interface VirtualLayoutSnapshot {
+  itemStarts: Map<string, number>;
+}
+
+const EMPTY_LAYOUT_MOTION = { items: new Map<string, VirtualItemLayoutMotion>() };
+
+function useVirtualItemLayoutMotion<T>({
+  prefersReducedMotion,
+  visibleItems,
+  virtualItems
+}: {
+  prefersReducedMotion: boolean;
+  visibleItems: Array<DataTableVisibleItem<T>>;
+  virtualItems: Array<DataTableVirtualItem>;
+}): { items: Map<string, VirtualItemLayoutMotion> } {
+  const previousRef = React.useRef(snapshotVirtualLayout({ visibleItems, virtualItems }));
+  const frameRef = React.useRef<number | undefined>(undefined);
+  const timerRef = React.useRef<number | undefined>(undefined);
+  const [layoutMotion, setLayoutMotion] = React.useState<{ items: Map<string, VirtualItemLayoutMotion> }>({
+    items: new Map()
+  });
+
+  React.useEffect(() => () => {
+    if (frameRef.current !== undefined) {
+      window.cancelAnimationFrame(frameRef.current);
+    }
+    if (timerRef.current !== undefined) {
+      window.clearTimeout(timerRef.current);
+    }
+  }, []);
+
+  React.useLayoutEffect(() => {
+    const nextSnapshot = snapshotVirtualLayout({ visibleItems, virtualItems });
+
+    if (prefersReducedMotion) {
+      if (frameRef.current !== undefined) {
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = undefined;
+      }
+      if (timerRef.current !== undefined) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = undefined;
+      }
+      previousRef.current = nextSnapshot;
+      return;
+    }
+
+    const previousSnapshot = previousRef.current;
+    previousRef.current = nextSnapshot;
+
+    const movedItems = new Map<string, VirtualItemLayoutMotion>();
+    nextSnapshot.itemStarts.forEach((nextStart, key) => {
+      const previousStart = previousSnapshot.itemStarts.get(key);
+      if (previousStart === undefined) {
+        return;
+      }
+
+      const offset = previousStart - nextStart;
+      if (offset !== 0) {
+        movedItems.set(key, { offset });
+      }
+    });
+
+    if (movedItems.size === 0) {
+      return;
+    }
+
+    if (frameRef.current !== undefined) {
+      window.cancelAnimationFrame(frameRef.current);
+    }
+    if (timerRef.current !== undefined) {
+      window.clearTimeout(timerRef.current);
+    }
+
+    setLayoutMotion({ items: movedItems });
+
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = undefined;
+      setLayoutMotion({
+        items: new Map(Array.from(movedItems.keys()).map((key) => [key, { offset: 0 }]))
+      });
+    });
+
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = undefined;
+      setLayoutMotion({ items: new Map() });
+    }, COLLAPSE_EXIT_DURATION);
+  }, [prefersReducedMotion, visibleItems, virtualItems]);
+
+  return prefersReducedMotion ? EMPTY_LAYOUT_MOTION : layoutMotion;
+}
+
 function useExitingCollapsedRows<T>({
   collapsedGroupIds,
-  motion,
+  prefersReducedMotion,
   visibleItems,
   virtualItems
 }: {
   collapsedGroupIds: string[];
-  motion: DataTableProps<T>["motion"];
+  prefersReducedMotion: boolean;
   visibleItems: Array<DataTableVisibleItem<T>>;
   virtualItems: Array<DataTableVirtualItem>;
 }): Array<ExitingCollapsedRow<T>> {
-  const prefersReducedMotion = usePrefersReducedMotion(motion);
   const previousRef = React.useRef(snapshotVisibleItems(visibleItems, virtualItems));
   const timersRef = React.useRef(new Map<string, number>());
   const [exitingRows, setExitingRows] = React.useState<Array<ExitingCollapsedRow<T>>>([]);
@@ -320,6 +423,27 @@ function snapshotVisibleItems<T>(
     items: visibleItems,
     itemKeys,
     virtualItems: virtualItemMap
+  };
+}
+
+function snapshotVirtualLayout<T>({
+  visibleItems,
+  virtualItems
+}: {
+  visibleItems: Array<DataTableVisibleItem<T>>;
+  virtualItems: Array<DataTableVirtualItem>;
+}): VirtualLayoutSnapshot {
+  const itemStarts = new Map<string, number>();
+
+  virtualItems.forEach((virtualItem) => {
+    const item = visibleItems[virtualItem.index];
+    if (item) {
+      itemStarts.set(visibleItemKey(item), virtualItem.start);
+    }
+  });
+
+  return {
+    itemStarts
   };
 }
 

@@ -710,7 +710,11 @@
   left: 0;
   position: absolute;
   right: 0;
-  transition: top var(--rdtg-motion-collapse);
+  transition: top var(--rdtg-motion-collapse), transform var(--rdtg-motion-collapse);
+}
+
+.rdtg-virtualItem[data-layout-motion="true"] {
+  will-change: transform;
 }
 
 .rdtg-virtualItemExiting {
