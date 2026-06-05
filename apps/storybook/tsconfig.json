@@ -12,5 +12,9 @@
     },
     "types": ["vite/client"]
   },
-  "include": [".storybook", "src"]
+  "include": [".storybook", "src", "../../packages/react-data-grid-kit/src"],
+  "exclude": [
+    "../../packages/react-data-grid-kit/src/**/*.test.ts",
+    "../../packages/react-data-grid-kit/src/**/*.test.tsx"
+  ]
 }
