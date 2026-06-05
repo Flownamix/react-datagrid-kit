@@ -327,8 +327,10 @@ export function useDataTableModel<T>({
       const normalizedOffset = Math.max(0, rowIndexOffset);
       const hasMoreRows = serverVirtualization
         ? serverVirtualization.hasMoreRows
-          ?? (typeof totalRowCount === "number" ? totalRowCount > normalizedOffset + modeledRows.length : false)
+          ?? (typeof totalRowCount === "number" ? totalRowCount > normalizedOffset + modeledRows.length : true)
         : false;
+      const showEndSentinel = serverVirtualization?.showEndSentinel
+        ?? (typeof serverVirtualization?.hasMoreRows === "boolean" || typeof totalRowCount === "number");
 
       return groupRows({
         rows: modeledRows,
@@ -338,6 +340,7 @@ export function useDataTableModel<T>({
         serverVirtualization: serverVirtualization
           ? {
             enabled: true,
+            showEndSentinel,
             rows: groups?.length
               ? undefined
               : {

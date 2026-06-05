@@ -586,6 +586,108 @@ describe("DataTable", () => {
     expect(within(sentinel).queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
+  it("treats unknown server totals as open-ended instead of rendering an end sentinel", async () => {
+    const onRowsEndReached = vi.fn();
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        serverVirtualization={{
+          onRowsEndReached
+        }}
+      />
+    );
+
+    await waitFor(() => expect(onRowsEndReached).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("End of rows")).not.toBeInTheDocument();
+    expect(onRowsEndReached.mock.calls[0]?.[0]).toMatchObject({
+      requestedStartIndex: 2
+    });
+  });
+
+  it("keeps aria row count valid when an ungrouped end sentinel is rendered", () => {
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        serverVirtualization={{
+          hasMoreRows: false
+        }}
+      />
+    );
+
+    const grid = screen.getByRole("grid");
+    const sentinel = container.querySelector(".rdtg-loadMoreRow") as HTMLElement;
+    expect(grid).toHaveAttribute("aria-rowcount", "4");
+    expect(sentinel).toHaveAttribute("aria-rowindex", "4");
+    expect(within(sentinel).getByText("End of rows")).toBeInTheDocument();
+  });
+
+  it("allows consumers to customize load-more sentinels", () => {
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        serverVirtualization={{
+          hasMoreRows: false,
+          renderLoadMore: ({ status, rowCount }) => (
+            <div>Custom {status} after {rowCount} rows</div>
+          )
+        }}
+      />
+    );
+
+    expect(screen.getAllByText("Custom end after 2 rows").length).toBeGreaterThan(0);
+  });
+
+  it("retries same-window end requests after load-more error clears", async () => {
+    const onRowsEndReached = vi.fn();
+    const { rerender } = render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        totalRowCount={10}
+        serverVirtualization={{
+          onRowsEndReached
+        }}
+      />
+    );
+
+    await waitFor(() => expect(onRowsEndReached).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        totalRowCount={10}
+        serverVirtualization={{
+          loadMoreError: "Load failed",
+          onRowsEndReached
+        }}
+      />
+    );
+    expect(screen.getAllByText("Load failed").length).toBeGreaterThan(0);
+
+    rerender(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        totalRowCount={10}
+        serverVirtualization={{
+          onRowsEndReached
+        }}
+      />
+    );
+
+    await waitFor(() => expect(onRowsEndReached).toHaveBeenCalledTimes(2));
+  });
+
   it("uses the mobile virtualizer as the active server virtualization surface", async () => {
     const restoreMatchMedia = mockMatchMedia({ mobile: true });
     const onRowsRangeChange = vi.fn();
@@ -611,6 +713,39 @@ describe("DataTable", () => {
       expect(onRowsEndReached.mock.calls[0]?.[0]).toMatchObject({
         surface: "mobile",
         requestedStartIndex: 2
+      });
+    } finally {
+      restoreMatchMedia();
+    }
+  });
+
+  it("uses actual frame display to choose the active server virtualization surface", async () => {
+    const restoreMatchMedia = mockMatchMedia({ mobile: false });
+    const onRowsRangeChange = vi.fn();
+
+    try {
+      const { container } = render(
+        <DataTable
+          rows={rows}
+          columns={columns}
+          getRowId={(row) => row.id}
+          totalRowCount={10}
+          serverVirtualization={{
+            onRowsRangeChange
+          }}
+        />
+      );
+      const desktopFrame = container.querySelector(".rdtg-desktopFrame") as HTMLElement;
+      const mobileFrame = container.querySelector(".rdtg-mobileFrame") as HTMLElement;
+      desktopFrame.style.display = "none";
+      mobileFrame.style.display = "block";
+
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+
+      await waitFor(() => {
+        expect(onRowsRangeChange.mock.calls.some((call) => call[0].surface === "mobile")).toBe(true);
       });
     } finally {
       restoreMatchMedia();
@@ -2450,6 +2585,7 @@ describe("DataTable", () => {
           label: "Active accounts",
           rowIds: ["1", "2"],
           totalCount: 5,
+          rowIndexOffset: 4,
           state: "partial"
         }]}
         serverVirtualization={{
@@ -2465,15 +2601,16 @@ describe("DataTable", () => {
     expect(onGroupRangeChange.mock.calls[0]?.[0]).toMatchObject({
       surface: "desktop",
       groupId: "active",
-      startIndex: 0,
-      endIndex: 2,
+      startIndex: 4,
+      endIndex: 6,
       loadedCount: 2,
+      rowIndexOffset: 4,
       totalCount: 5
     });
     expect(onGroupEndReached.mock.calls[0]?.[0]).toMatchObject({
       surface: "desktop",
       groupId: "active",
-      requestedStartIndex: 2
+      requestedStartIndex: 6
     });
   });
 

@@ -23,6 +23,7 @@ export function groupRows<T>({
   getRowId: (row: T) => DataTableRowId;
   serverVirtualization?: {
     enabled: boolean;
+    showEndSentinel?: boolean;
     rows?: {
       hasMoreRows: boolean;
       loadingMore?: boolean;
@@ -38,7 +39,8 @@ export function groupRows<T>({
         rowCount: rowItems.length,
         hasMoreRows: serverVirtualization.rows.hasMoreRows,
         loadingMore: serverVirtualization.rows.loadingMore,
-        loadMoreError: serverVirtualization.rows.loadMoreError
+        loadMoreError: serverVirtualization.rows.loadMoreError,
+        showEndSentinel: serverVirtualization.showEndSentinel ?? true
       })
       : undefined;
 
@@ -75,7 +77,8 @@ export function groupRows<T>({
         rowCount: groupRows.length,
         hasMoreRows: resolveGroupHasMoreRows(group, groupRows),
         loadingMore: group.loadingMore,
-        loadMoreError: group.loadMoreError
+        loadMoreError: group.loadMoreError,
+        showEndSentinel: serverVirtualization.showEndSentinel ?? true
       })
       : undefined;
 
@@ -162,7 +165,8 @@ function loadMoreItem<T>({
   rowCount,
   hasMoreRows,
   loadingMore,
-  loadMoreError
+  loadMoreError,
+  showEndSentinel
 }: {
   scope: "rows" | "group";
   group?: DataTableGroup<T>;
@@ -170,6 +174,7 @@ function loadMoreItem<T>({
   hasMoreRows: boolean;
   loadingMore?: boolean;
   loadMoreError?: React.ReactNode;
+  showEndSentinel: boolean;
 }): Extract<DataTableVisibleItem<T>, { kind: "loadMore" }> | undefined {
   if (loadMoreError) {
     return {
@@ -196,7 +201,7 @@ function loadMoreItem<T>({
     };
   }
 
-  if (!hasMoreRows) {
+  if (!hasMoreRows && showEndSentinel) {
     return {
       kind: "loadMore",
       id: loadMoreItemId(scope, group?.id, "end"),

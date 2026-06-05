@@ -595,6 +595,8 @@ function FirstClassToolbarExample(args: DataTableProps<AccountRow>) {
 function ServerVirtualizedRowsExample(args: DataTableProps<AccountRow>) {
   const [loadedCount, setLoadedCount] = useState(8);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | undefined>();
+  const [retryKey, setRetryKey] = useState(0);
   const loadedRows = virtualizedAccounts.slice(0, loadedCount);
 
   return (
@@ -603,9 +605,38 @@ function ServerVirtualizedRowsExample(args: DataTableProps<AccountRow>) {
       rows={loadedRows}
       totalRowCount={virtualizedAccounts.length}
       serverVirtualization={{
+        retryKey,
         loadingMore,
+        loadMoreError,
+        showEndSentinel: true,
+        renderLoadMore: ({ status, defaultContent }) => {
+          if (status !== "error") {
+            return defaultContent;
+          }
+
+          return (
+            <div className="story-tableFooter" role="status">
+              <span>Server window failed to load.</span>
+              <button
+                className="story-button"
+                type="button"
+                onClick={() => {
+                  setLoadMoreError(undefined);
+                  setRetryKey((current) => current + 1);
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          );
+        },
         onRowsEndReached: ({ requestedStartIndex }) => {
-          if (loadingMore || requestedStartIndex >= virtualizedAccounts.length) {
+          if (loadingMore || loadMoreError || requestedStartIndex >= virtualizedAccounts.length) {
+            return;
+          }
+
+          if (requestedStartIndex >= 14 && retryKey === 0) {
+            setLoadMoreError("Server window failed to load.");
             return;
           }
 
@@ -649,6 +680,7 @@ function ServerVirtualizedGroupsExample(args: DataTableProps<AccountRow>) {
       rowIds: reviewRows.map((row) => row.id),
       totalCount: 10,
       loadedCount: reviewRows.length,
+      rowIndexOffset: 12,
       loadingMore: loadingGroupId === "review",
       state: reviewRows.length < 10 ? "partial" : "loaded"
     }
@@ -660,7 +692,7 @@ function ServerVirtualizedGroupsExample(args: DataTableProps<AccountRow>) {
       rows={groupedRows}
       groups={virtualGroups}
       serverVirtualization={{
-        onGroupEndReached: ({ groupId }) => {
+        onGroupEndReached: ({ groupId, requestedStartIndex }) => {
           if (loadingGroupId) {
             return;
           }
@@ -670,7 +702,7 @@ function ServerVirtualizedGroupsExample(args: DataTableProps<AccountRow>) {
             if (groupId === "priority") {
               setPriorityCount((current) => Math.min(current + 4, 12));
             } else {
-              setReviewCount((current) => Math.min(current + 4, 10));
+              setReviewCount(() => Math.min(requestedStartIndex - 12 + 4, 10));
             }
             setLoadingGroupId(undefined);
           }, 400);
@@ -1093,7 +1125,7 @@ export const ServerVirtualizedRows: Story = {
   parameters: {
     docs: {
       description: {
-        story: "Server virtualization emits range and end-reached signals while the host owns fetching and appends the next result window."
+        story: "Server virtualization emits range and end-reached signals while the host owns fetching, retry state, sentinel customization, and appending the next result window."
       }
     }
   }
@@ -1113,7 +1145,7 @@ export const ServerVirtualizedGroups: Story = {
   parameters: {
     docs: {
       description: {
-        story: "Grouped server virtualization requests additional rows per expanded group and renders inline group loading sentinels."
+        story: "Grouped server virtualization requests additional rows per expanded group, including non-zero group-local offsets, and renders inline group loading sentinels."
       }
     }
   }

@@ -120,10 +120,13 @@ Server virtualization:
 
 - `serverVirtualization.overscan?: number` controls virtual overscan and defaults to `8`.
 - `serverVirtualization.loadThreshold?: number` controls when end-reached callbacks fire and defaults to `8`.
-- `hasMoreRows`, `loadingMore`, and `loadMoreError` describe ungrouped append state. If `hasMoreRows` is omitted, it defaults to `totalRowCount > rowIndexOffset + visibleRowCount`.
+- `hasMoreRows`, `loadingMore`, and `loadMoreError` describe ungrouped append state. If `hasMoreRows` is omitted with a known `totalRowCount`, it defaults to `totalRowCount > rowIndexOffset + visibleRowCount`. If the total is unknown and `onRowsEndReached` is supplied, the table treats the stream as open-ended.
+- `retryKey` lets the host intentionally re-arm an end-reached request for the same loaded window after retry state changes.
+- `showEndSentinel` controls whether a known completed stream renders the built-in end sentinel. It defaults to `true` when `hasMoreRows` or `totalRowCount` makes the end knowable.
+- `renderLoadMore(context)` customizes loading, error, and end sentinels. `context.defaultContent` contains the package default, and `context.status` is `"loading"`, `"error"`, or `"end"`.
 - `onRowsRangeChange(range)` receives the active surface, absolute `[startIndex, endIndex)` range, loaded rows, `loadedCount`, `totalRowCount`, and `rowIndexOffset`.
 - `onRowsEndReached(request)` fires once per loaded window when the active range reaches the load threshold. `requestedStartIndex` is the next absolute server row index.
-- `onGroupRangeChange(range)` and `onGroupEndReached(request)` use group-local indexes. `requestedStartIndex` is the next group-local row index.
+- `onGroupRangeChange(range)` and `onGroupEndReached(request)` use group-local server indexes. If the group rows start after index `0`, set `group.rowIndexOffset`; `requestedStartIndex` is `rowIndexOffset + loadedCount`.
 - The table renders inline loading, error, and end sentinels for opted-in server virtualization state. These sentinels are not selectable, editable, or keyboard cell targets.
 
 First-class toolbar:
@@ -309,6 +312,7 @@ Inline edit render functions receive `{ row, rowId, column, value, setValue, com
 - `rowIds?: string[]`
 - `totalCount?: number`
 - `loadedCount?: number`
+- `rowIndexOffset?: number`
 - `hasMoreRows?: boolean`
 - `loadingMore?: boolean`
 - `loadMoreError?: ReactNode`
@@ -331,6 +335,7 @@ Group notes:
 - `rowIds` references rows from the top-level `rows` prop. Use it when the server returns groups and a shared result row array.
 - `rows` embeds group-specific rows. Use it when the group payload already owns its row array.
 - `totalCount` describes the full server-side group size. `loadedCount` describes rows available to the table. If omitted, `loadedCount` falls back to visible loaded rows.
+- `rowIndexOffset` is the zero-based group-local server index for the first loaded row in that group.
 - `hasMoreRows` overrides the group append default. If omitted, a group has more rows when `totalCount > loadedCount` or `state` is `"partial"`.
 - `loadingMore` and `loadMoreError` render inline group sentinels when `serverVirtualization` is enabled.
 - `countLabel` overrides the built-in count text.

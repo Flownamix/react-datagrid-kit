@@ -8,6 +8,7 @@ import type {
   DataTableGroupHeaderContext,
   DataTableGroupSummary,
   DataTableIcons,
+  DataTableProps,
   DataTableRowId,
   DataTableStateLabel,
   DataTableVisibleItem
@@ -26,6 +27,7 @@ export interface DataTableMobileListProps<T> {
   rowHeight: number;
   groupHeight: number;
   overscan: number;
+  mobileFrameRef?: React.MutableRefObject<HTMLDivElement | null>;
   renderCard?: (row: T) => React.ReactNode;
   columns: Array<DataTableColumn<T>>;
   icons: DataTableIcons;
@@ -50,6 +52,7 @@ export interface DataTableMobileListProps<T> {
   collapsedGroupIds: string[];
   onGroupToggle: (groupId: string) => void;
   onVirtualItemsChange?: (virtualItems: Array<DataTableVirtualItem>) => void;
+  renderLoadMore?: NonNullable<DataTableProps<T>["serverVirtualization"]>["renderLoadMore"];
   renderMobileGroupHeader?: (
     group: DataTableGroup<T>,
     summary: DataTableGroupSummary<T>,
@@ -64,6 +67,7 @@ export function DataTableMobileList<T>({
   rowHeight,
   groupHeight,
   overscan,
+  mobileFrameRef,
   renderCard,
   columns,
   icons,
@@ -88,9 +92,16 @@ export function DataTableMobileList<T>({
   collapsedGroupIds,
   onGroupToggle,
   onVirtualItemsChange,
+  renderLoadMore,
   renderMobileGroupHeader
 }: DataTableMobileListProps<T>): React.ReactElement {
   const parentRef = React.useRef<HTMLDivElement>(null);
+  const setFrameRef = React.useCallback((node: HTMLDivElement | null) => {
+    parentRef.current = node;
+    if (mobileFrameRef) {
+      mobileFrameRef.current = node;
+    }
+  }, [mobileFrameRef]);
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual owns the mobile item measurement lifecycle.
   const virtualizer = useVirtualizer({
     count: visibleItems.length,
@@ -131,7 +142,7 @@ export function DataTableMobileList<T>({
 
   return (
     <div
-      ref={parentRef}
+      ref={setFrameRef}
       className="rdtg-mobileFrame"
       role="list"
       aria-label={ariaLabel}
@@ -178,6 +189,7 @@ export function DataTableMobileList<T>({
                   onSelectedChange={onSelectedChange}
                   collapsedGroupIds={collapsedGroupIds}
                   onGroupToggle={onGroupToggle}
+                  renderLoadMore={renderLoadMore}
                   renderMobileGroupHeader={renderMobileGroupHeader}
                 />
               </div>
@@ -204,6 +216,7 @@ interface MobileVisibleItemProps<T> {
   onSelectedChange: (rowId: DataTableRowId, checked: boolean) => void;
   collapsedGroupIds: string[];
   onGroupToggle: (groupId: string) => void;
+  renderLoadMore?: NonNullable<DataTableProps<T>["serverVirtualization"]>["renderLoadMore"];
   renderMobileGroupHeader?: (
     group: DataTableGroup<T>,
     summary: DataTableGroupSummary<T>,
@@ -226,6 +239,7 @@ function MobileVisibleItem<T>({
   onSelectedChange,
   collapsedGroupIds,
   onGroupToggle,
+  renderLoadMore,
   renderMobileGroupHeader
 }: MobileVisibleItemProps<T>): React.ReactElement {
             if (item.kind === "group") {
@@ -243,7 +257,7 @@ function MobileVisibleItem<T>({
             }
 
             if (item.kind === "loadMore") {
-              return <DataTableLoadMoreMobileItem item={item} icons={icons} />;
+              return <DataTableLoadMoreMobileItem item={item} icons={icons} renderLoadMore={renderLoadMore} />;
             }
 
             const rowId = item.id;

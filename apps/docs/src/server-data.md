@@ -72,8 +72,13 @@ Use `serverVirtualization` when the host app wants load signals from the active 
   totalRowCount={result.total}
   rowIndexOffset={result.offset}
   serverVirtualization={{
+    retryKey: result.retryNonce,
     loadingMore: result.loadingMore,
     loadMoreError: result.loadMoreError,
+    renderLoadMore: ({ status, defaultContent }) => {
+      if (status !== "error") return defaultContent;
+      return <button type="button" onClick={result.retryMore}>Retry loading rows</button>;
+    },
     onRowsRangeChange: (range) => trackVisibleServerRange(range),
     onRowsEndReached: ({ requestedStartIndex }) => {
       fetchRows({ offset: requestedStartIndex });
@@ -82,7 +87,11 @@ Use `serverVirtualization` when the host app wants load signals from the active 
 />
 ```
 
-Ungrouped range indexes are absolute server row indexes. Grouped range indexes are local to the group:
+Ungrouped range indexes are absolute server row indexes. If `totalRowCount` is unknown and `hasMoreRows` is omitted, the table treats the stream as open-ended when `onRowsEndReached` is present and does not render an end sentinel. Set `hasMoreRows={false}` or `showEndSentinel` when the host knows the stream is complete.
+
+`retryKey` is optional. Use it when a retry should re-arm the same loaded window after `loadMoreError` clears without changing `rows`.
+
+Grouped range indexes are local to the group. Use `rowIndexOffset` on a group when the loaded rows are a non-zero group-local server window:
 
 ```tsx
 <DataTable
@@ -98,7 +107,7 @@ Ungrouped range indexes are absolute server row indexes. Grouped range indexes a
 />
 ```
 
-For grouped data, set `totalCount`, `loadedCount`, `hasMoreRows`, `loadingMore`, or `loadMoreError` on each group. If `hasMoreRows` is omitted, partial groups are treated as having more rows when `totalCount > loadedCount` or `state` is `"partial"`.
+For grouped data, set `totalCount`, `loadedCount`, `rowIndexOffset`, `hasMoreRows`, `loadingMore`, or `loadMoreError` on each group. If `hasMoreRows` is omitted, partial groups are treated as having more rows when `totalCount > loadedCount` or `state` is `"partial"`. Collapsed groups do not render group load sentinels and do not emit group load requests.
 
 Desktop and mobile lists are both virtualized. Only the active responsive surface emits server virtualization callbacks, so a hidden desktop grid and hidden mobile list do not duplicate fetch requests.
 
@@ -156,6 +165,7 @@ Use `onRowClick` for row activation and `onRowContextMenu` for app-owned context
 - Debounce server quick search in the host app if needed.
 - Keep `rows` stable until a replacement result arrives when using `stale`.
 - Pass `totalRowCount` and `rowIndexOffset` for server-paged, ungrouped data.
-- Use `serverVirtualization` for viewport-driven loading; de-dupe, cancellation, retries, and fetch state remain in the host app.
+- Use `serverVirtualization` for viewport-driven loading; cancellation, network de-dupe, retries, and fetch state remain in the host app.
+- Use `renderLoadMore` for app-specific loading, retry, and completed-state UI without making sentinels selectable rows.
 - Use controlled `sort`, `filters`, and `quickSearch` when they are part of the query key.
 - Use stable row ids across refreshes so selection, editing, and grouping stay coherent.

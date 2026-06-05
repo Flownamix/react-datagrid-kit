@@ -140,6 +140,7 @@ export interface DataTableGroup<T> {
   rowIds?: DataTableRowId[];
   totalCount?: number;
   loadedCount?: number;
+  rowIndexOffset?: number;
   hasMoreRows?: boolean;
   loadingMore?: boolean;
   loadMoreError?: React.ReactNode;
@@ -234,8 +235,6 @@ export interface DataTableRowsVirtualRange<T> {
   surface: DataTableVirtualSurface;
   startIndex: number;
   endIndex: number;
-  visibleStartIndex: number;
-  visibleEndIndex: number;
   rows: T[];
   loadedCount: number;
   totalRowCount: number;
@@ -252,15 +251,24 @@ export interface DataTableGroupVirtualRange<T> {
   groupId: string;
   startIndex: number;
   endIndex: number;
-  visibleStartIndex: number;
-  visibleEndIndex: number;
   rows: T[];
   loadedCount: number;
+  rowIndexOffset: number;
   totalCount?: number;
 }
 
 export interface DataTableGroupLoadRequest<T> extends DataTableGroupVirtualRange<T> {
   requestedStartIndex: number;
+}
+
+export interface DataTableLoadMoreRenderContext<T> {
+  scope: "rows" | "group";
+  status: "loading" | "error" | "end";
+  group?: DataTableGroup<T>;
+  groupId?: string;
+  rowCount: number;
+  error?: React.ReactNode;
+  defaultContent: React.ReactNode;
 }
 
 export interface DataTableServerVirtualization<T> {
@@ -269,6 +277,9 @@ export interface DataTableServerVirtualization<T> {
   hasMoreRows?: boolean;
   loadingMore?: boolean;
   loadMoreError?: React.ReactNode;
+  retryKey?: string | number;
+  showEndSentinel?: boolean;
+  renderLoadMore?: (context: DataTableLoadMoreRenderContext<T>) => React.ReactNode;
   onRowsRangeChange?: (range: DataTableRowsVirtualRange<T>) => void;
   onRowsEndReached?: (request: DataTableRowsLoadRequest<T>) => void;
   onGroupRangeChange?: (range: DataTableGroupVirtualRange<T>) => void;

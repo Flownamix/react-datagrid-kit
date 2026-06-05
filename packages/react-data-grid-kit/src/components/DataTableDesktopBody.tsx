@@ -33,6 +33,7 @@ export interface DataTableDesktopBodyProps<T> {
   onSelectedChange: (rowId: DataTableRowId, checked: boolean) => void;
   pinned: DataTablePinnedLayout;
   renderGroupHeader: DataTableProps<T>["renderGroupHeader"];
+  renderLoadMore: NonNullable<DataTableProps<T>["serverVirtualization"]>["renderLoadMore"] | undefined;
   renderRowActions: DataTableProps<T>["renderRowActions"];
   rowAriaLabel: DataTableProps<T>["rowAriaLabel"];
   selectedIds: Set<string>;
@@ -70,6 +71,7 @@ export function DataTableDesktopBody<T>({
   onSelectedChange,
   pinned,
   renderGroupHeader,
+  renderLoadMore,
   renderRowActions,
   rowAriaLabel,
   selectedIds,
@@ -123,6 +125,7 @@ export function DataTableDesktopBody<T>({
                     columns={totalColumnCount}
                     rowIndex={rowIndexOffset + virtualItem.index + 2}
                     icons={icons}
+                    renderLoadMore={renderLoadMore}
                   />
                 ) : item.kind === "group" ? (
                   <DataTableGroupRow
