@@ -22,6 +22,29 @@ import { cx } from "../utils/cx";
 
 const KEYBOARD_RESIZE_STEP = 16;
 const KEYBOARD_RESIZE_LARGE_STEP = 40;
+const COLUMN_REORDER_ACTIVATION_DISTANCE = 4;
+const COLUMN_REORDER_EDGE_SCROLL_ZONE = 36;
+const COLUMN_REORDER_MAX_SCROLL_STEP = 18;
+
+type ColumnPinRegion = "left" | "center" | "right";
+
+interface ColumnDragSession {
+  active: boolean;
+  currentX: number;
+  currentY: number;
+  sourceId: string;
+  sourceLabel: string;
+  sourceRegion: ColumnPinRegion;
+  startX: number;
+  startY: number;
+}
+
+interface ColumnDropTarget {
+  columnId: string;
+  destinationColumnId: string;
+  placement: ColumnDropPlacement;
+  valid: boolean;
+}
 
 export interface DataTableHeaderProps<T> {
   columns: Array<DataTableColumn<T>>;
@@ -70,29 +93,87 @@ export function DataTableHeader<T>({
   onColumnSizingChange,
   onSelectAll
 }: DataTableHeaderProps<T>): React.ReactElement {
-  const [draggingColumnId, setDraggingColumnId] = React.useState<string | undefined>();
-  const [dropTarget, setDropTarget] = React.useState<{ columnId: string; placement: ColumnDropPlacement } | undefined>();
+  const [dragSession, setDragSession] = React.useState<ColumnDragSession | undefined>();
+  const [dropTarget, setDropTarget] = React.useState<ColumnDropTarget | undefined>();
+  const desktopFrameRef = React.useRef<HTMLElement | undefined>(undefined);
+  const columnRegions = React.useMemo(() => {
+    const regions = new Map<string, ColumnPinRegion>();
+    columns.forEach((column) => {
+      regions.set(column.id, pinned.columns[column.id]?.side ?? "center");
+    });
+    return regions;
+  }, [columns, pinned.columns]);
+  const orderedColumnIds = React.useMemo(() => columns.map((column) => column.id), [columns]);
+  const activeDragSession = dragSession?.active ? dragSession : undefined;
+  const dragActive = Boolean(activeDragSession);
 
   const clearDragState = React.useCallback(() => {
-    setDraggingColumnId(undefined);
+    setDragSession(undefined);
     setDropTarget(undefined);
+    desktopFrameRef.current = undefined;
   }, []);
 
   React.useEffect(() => {
-    if (!draggingColumnId) {
+    if (!dragActive || typeof document === "undefined") {
+      return undefined;
+    }
+
+    document.body.dataset.rdtgReorderDragging = "true";
+
+    return () => {
+      delete document.body.dataset.rdtgReorderDragging;
+    };
+  }, [dragActive]);
+
+  React.useEffect(() => {
+    if (!dragSession) {
       return undefined;
     }
 
     const handlePointerMove = (event: PointerEvent) => {
       event.preventDefault();
-      setDropTarget(resolvePointerDropTarget({ sourceId: draggingColumnId, clientX: event.clientX, clientY: event.clientY }));
+      const active = dragSession.active || pointerDistance(dragSession.startX, dragSession.startY, event.clientX, event.clientY) >= COLUMN_REORDER_ACTIVATION_DISTANCE;
+      const nextSession = {
+        ...dragSession,
+        active,
+        currentX: event.clientX,
+        currentY: event.clientY
+      };
+
+      setDragSession(nextSession);
+
+      if (!active) {
+        setDropTarget(undefined);
+        return;
+      }
+
+      scrollFrameNearHorizontalEdge(desktopFrameRef.current, event.clientX);
+      setDropTarget(resolvePointerDropTarget({
+        columnRegions,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        orderedColumnIds,
+        sourceId: dragSession.sourceId,
+        sourceRegion: dragSession.sourceRegion
+      }));
     };
 
     const handlePointerUp = (event: PointerEvent) => {
       event.preventDefault();
-      const target = resolvePointerDropTarget({ sourceId: draggingColumnId, clientX: event.clientX, clientY: event.clientY });
-      if (target) {
-        onColumnReorder(draggingColumnId, target.columnId, target.placement);
+      const active = dragSession.active || pointerDistance(dragSession.startX, dragSession.startY, event.clientX, event.clientY) >= COLUMN_REORDER_ACTIVATION_DISTANCE;
+      const target = active
+        ? resolvePointerDropTarget({
+          columnRegions,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          orderedColumnIds,
+          sourceId: dragSession.sourceId,
+          sourceRegion: dragSession.sourceRegion
+        })
+        : undefined;
+
+      if (target?.valid) {
+        onColumnReorder(dragSession.sourceId, target.destinationColumnId, target.placement);
       }
       clearDragState();
     };
@@ -110,10 +191,10 @@ export function DataTableHeader<T>({
       document.removeEventListener("pointerup", handlePointerUp);
       document.removeEventListener("pointercancel", handlePointerCancel);
     };
-  }, [clearDragState, draggingColumnId, onColumnReorder]);
+  }, [clearDragState, columnRegions, dragSession, onColumnReorder, orderedColumnIds]);
 
   return (
-    <div className="rdtg-header" role="rowgroup">
+    <div className="rdtg-header" role="rowgroup" data-reorder-dragging={activeDragSession ? "true" : undefined}>
       <div className="rdtg-headerRow" role="row" aria-rowindex={1} style={{ gridTemplateColumns: template }}>
         {selectable ? (
           <div
@@ -142,7 +223,7 @@ export function DataTableHeader<T>({
           const ariaColumnIndex = columnIndex + (selectable ? 2 : 1);
           const pinnedCell = pinned.columns[column.id];
           const reorderable = enableColumnReordering && column.reorderable !== false;
-          const targetPlacement = dropTarget?.columnId === column.id ? dropTarget.placement : undefined;
+          const target = dropTarget?.columnId === column.id ? dropTarget : undefined;
           return (
             <div
               key={column.id}
@@ -155,9 +236,11 @@ export function DataTableHeader<T>({
               data-pin-side={pinnedCell?.side}
               data-pin-edge={pinnedCell?.edge ? "true" : undefined}
               data-reorderable={reorderable ? "true" : undefined}
-              data-dragging={draggingColumnId === column.id ? "true" : undefined}
-              data-drop-target={targetPlacement ? "true" : undefined}
-              data-drop-placement={targetPlacement}
+              data-dragging={activeDragSession?.sourceId === column.id ? "true" : undefined}
+              data-drop-target={target ? "true" : undefined}
+              data-drop-destination={dropTarget?.valid && dropTarget.destinationColumnId === column.id ? "true" : undefined}
+              data-drop-placement={target?.placement}
+              data-drop-valid={target ? String(target.valid) : undefined}
               data-rdtg-grid-cell="true"
               tabIndex={-1}
               style={pinnedCellStyle(pinnedCell)}
@@ -176,7 +259,17 @@ export function DataTableHeader<T>({
 
                     event.preventDefault();
                     event.stopPropagation();
-                    setDraggingColumnId(column.id);
+                    desktopFrameRef.current = event.currentTarget.closest<HTMLElement>(".rdtg-desktopFrame") ?? undefined;
+                    setDragSession({
+                      active: false,
+                      currentX: event.clientX,
+                      currentY: event.clientY,
+                      sourceId: column.id,
+                      sourceLabel: plainText(column.header),
+                      sourceRegion: columnRegions.get(column.id) ?? "center",
+                      startX: event.clientX,
+                      startY: event.clientY
+                    });
                     setDropTarget(undefined);
                   }}
                 >
@@ -227,24 +320,40 @@ export function DataTableHeader<T>({
           />
         ) : null}
       </div>
+      {activeDragSession ? (
+        <div
+          aria-hidden="true"
+          className="rdtg-reorderPreview"
+          style={{
+            transform: `translate3d(${activeDragSession.currentX + 12}px, ${activeDragSession.currentY + 12}px, 0)`
+          }}
+        >
+          {activeDragSession.sourceLabel}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function dropPlacementForEvent(element: HTMLElement, clientX: number): ColumnDropPlacement {
-  const rect = element.getBoundingClientRect();
-  return clientX > rect.left + rect.width / 2 ? "after" : "before";
-}
-
 function resolvePointerDropTarget({
+  columnRegions,
   sourceId,
+  sourceRegion,
   clientX,
-  clientY
+  clientY,
+  orderedColumnIds
 }: {
+  columnRegions: Map<string, ColumnPinRegion>;
   sourceId: string;
+  sourceRegion: ColumnPinRegion;
   clientX: number;
   clientY: number;
-}): { columnId: string; placement: ColumnDropPlacement } | undefined {
+  orderedColumnIds: string[];
+}): ColumnDropTarget | undefined {
+  if (typeof document.elementFromPoint !== "function") {
+    return undefined;
+  }
+
   const element = document.elementFromPoint(clientX, clientY);
   const headerCell = element?.closest<HTMLElement>(".rdtg-headerCell[data-column-id]");
   const columnId = headerCell?.dataset.columnId;
@@ -253,10 +362,87 @@ function resolvePointerDropTarget({
     return undefined;
   }
 
+  const placement = dropPlacementForHoveredColumnSlot({ orderedColumnIds, sourceId, targetId: columnId });
+  if (!placement) {
+    return undefined;
+  }
+
+  const targetRegion = columnRegions.get(columnId) ?? "center";
+  if (targetRegion !== sourceRegion) {
+    return {
+      columnId,
+      destinationColumnId: columnId,
+      placement,
+      valid: false
+    };
+  }
+
   return {
     columnId,
-    placement: dropPlacementForEvent(headerCell, clientX)
+    destinationColumnId: columnId,
+    placement,
+    valid: true
   };
+}
+
+function dropPlacementForHoveredColumnSlot({
+  orderedColumnIds,
+  sourceId,
+  targetId
+}: {
+  orderedColumnIds: string[];
+  sourceId: string;
+  targetId: string;
+}): ColumnDropPlacement | undefined {
+  const sourceIndex = orderedColumnIds.indexOf(sourceId);
+  const targetIndex = orderedColumnIds.indexOf(targetId);
+
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+    return undefined;
+  }
+
+  return targetIndex > sourceIndex ? "after" : "before";
+}
+
+function pointerDistance(startX: number, startY: number, currentX: number, currentY: number): number {
+  return Math.hypot(currentX - startX, currentY - startY);
+}
+
+function scrollFrameNearHorizontalEdge(frame: HTMLElement | undefined, clientX: number): void {
+  if (!frame) {
+    return;
+  }
+
+  const delta = horizontalEdgeScrollDelta(frame, clientX);
+  if (delta !== 0) {
+    frame.scrollLeft += delta;
+  }
+}
+
+function horizontalEdgeScrollDelta(frame: HTMLElement, clientX: number): number {
+  const rect = frame.getBoundingClientRect();
+  const maxScrollLeft = Math.max(0, frame.scrollWidth - frame.clientWidth);
+
+  if (maxScrollLeft <= 0) {
+    return 0;
+  }
+
+  const leftDistance = clientX - rect.left;
+  if (leftDistance < COLUMN_REORDER_EDGE_SCROLL_ZONE && frame.scrollLeft > 0) {
+    return -edgeScrollStep(leftDistance);
+  }
+
+  const rightDistance = rect.right - clientX;
+  if (rightDistance < COLUMN_REORDER_EDGE_SCROLL_ZONE && frame.scrollLeft < maxScrollLeft) {
+    return edgeScrollStep(rightDistance);
+  }
+
+  return 0;
+}
+
+function edgeScrollStep(distanceFromEdge: number): number {
+  const intensity = (COLUMN_REORDER_EDGE_SCROLL_ZONE - Math.max(0, distanceFromEdge)) / COLUMN_REORDER_EDGE_SCROLL_ZONE;
+  return Math.ceil(intensity * COLUMN_REORDER_MAX_SCROLL_STEP);
 }
 
 function DataTableColumnResizeHandle<T>({

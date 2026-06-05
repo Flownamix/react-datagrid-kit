@@ -55,21 +55,21 @@ const columns: Array<DataTableColumn<Row>> = [
   }
 ];
 
-function mockClientRect(element: HTMLElement, { left, width }: { left: number; width: number }): void {
+function mockClientRect(element: HTMLElement, { height = 32, left, top = 0, width }: { height?: number; left: number; top?: number; width: number }): void {
   element.getBoundingClientRect = () => ({
-    bottom: 32,
-    height: 32,
+    bottom: top + height,
+    height,
     left,
     right: left + width,
-    top: 0,
+    top,
     width,
     x: left,
-    y: 0,
+    y: top,
     toJSON: () => undefined
   });
 }
 
-function mockElementFromPoint(target: Element): () => void {
+function mockElementFromPoint(target: Element | null): () => void {
   const original = document.elementFromPoint;
   document.elementFromPoint = vi.fn(() => target);
 
@@ -1007,12 +1007,233 @@ describe("DataTable", () => {
     const restoreElementFromPoint = mockElementFromPoint(companyHeader);
 
     fireEvent.pointerDown(scoreHandle, { button: 0, clientX: 260, clientY: 16 });
+    fireEvent.pointerMove(document, { clientX: 16, clientY: 16 });
     fireEvent.pointerUp(document, { clientX: 16, clientY: 16 });
     restoreElementFromPoint();
 
     expect(onColumnOrderChange).toHaveBeenCalledWith(["score", "company"]);
     const headerCells = Array.from(container.querySelectorAll<HTMLElement>(".rdtg-headerCell[data-column-id]"));
     expect(headerCells.map((cell) => cell.dataset.columnId)).toEqual(["company", "score"]);
+  });
+
+  it("does not activate column reorder until pointer movement passes the drag threshold", () => {
+    const onColumnOrderChange = vi.fn();
+
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        enableColumnReordering
+        onColumnOrderChange={onColumnOrderChange}
+      />
+    );
+
+    const header = container.querySelector<HTMLElement>(".rdtg-header")!;
+    const scoreHandle = screen.getByRole("button", { name: "Reorder Score" });
+    const companyHeader = container.querySelector<HTMLElement>('.rdtg-headerCell[data-column-id="company"]')!;
+    mockClientRect(companyHeader, { left: 0, width: 160 });
+    const restoreElementFromPoint = mockElementFromPoint(companyHeader);
+
+    fireEvent.pointerDown(scoreHandle, { button: 0, clientX: 260, clientY: 16 });
+    fireEvent.pointerMove(document, { clientX: 262, clientY: 17 });
+
+    expect(header).not.toHaveAttribute("data-reorder-dragging");
+    expect(document.body).not.toHaveAttribute("data-rdtg-reorder-dragging");
+    expect(companyHeader).not.toHaveAttribute("data-drop-target");
+    expect(container.querySelector(".rdtg-reorderPreview")).not.toBeInTheDocument();
+
+    fireEvent.pointerUp(document, { clientX: 262, clientY: 17 });
+    restoreElementFromPoint();
+
+    expect(onColumnOrderChange).not.toHaveBeenCalled();
+  });
+
+  it("shows global drag state and preview only while column reorder is active", () => {
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        enableColumnReordering
+      />
+    );
+
+    const header = container.querySelector<HTMLElement>(".rdtg-header")!;
+    const scoreHandle = screen.getByRole("button", { name: "Reorder Score" });
+    const companyHeader = container.querySelector<HTMLElement>('.rdtg-headerCell[data-column-id="company"]')!;
+    const scoreHeader = container.querySelector<HTMLElement>('.rdtg-headerCell[data-column-id="score"]')!;
+    mockClientRect(companyHeader, { left: 0, width: 160 });
+    const restoreElementFromPoint = mockElementFromPoint(companyHeader);
+
+    fireEvent.pointerDown(scoreHandle, { button: 0, clientX: 260, clientY: 16 });
+    fireEvent.pointerMove(document, { clientX: 16, clientY: 16 });
+
+    expect(header).toHaveAttribute("data-reorder-dragging", "true");
+    expect(document.body).toHaveAttribute("data-rdtg-reorder-dragging", "true");
+    expect(scoreHeader).toHaveAttribute("data-dragging", "true");
+    expect(container.querySelector(".rdtg-reorderPreview")).toHaveTextContent("Score");
+    expect(companyHeader).toHaveAttribute("data-drop-destination", "true");
+    expect(container.querySelector(".rdtg-reorderInsertionGuide")).not.toBeInTheDocument();
+
+    fireEvent.pointerUp(document, { clientX: 16, clientY: 16 });
+    restoreElementFromPoint();
+
+    expect(header).not.toHaveAttribute("data-reorder-dragging");
+    expect(document.body).not.toHaveAttribute("data-rdtg-reorder-dragging");
+    expect(container.querySelector(".rdtg-reorderPreview")).not.toBeInTheDocument();
+  });
+
+  it("uses the hovered header as the destination slot", () => {
+    const orderedColumns: Array<DataTableColumn<Row>> = [
+      columns[0]!,
+      {
+        id: "owner",
+        header: "Owner",
+        renderCell: (row) => row.owner
+      },
+      columns[1]!
+    ];
+
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={orderedColumns}
+        getRowId={(row) => row.id}
+        enableColumnReordering
+        defaultColumnOrder={["company", "owner", "score"]}
+      />
+    );
+
+    const scoreHandle = screen.getByRole("button", { name: "Reorder Score" });
+    const ownerHeader = container.querySelector<HTMLElement>('.rdtg-headerCell[data-column-id="owner"]')!;
+    const scoreHeader = container.querySelector<HTMLElement>('.rdtg-headerCell[data-column-id="score"]')!;
+    mockClientRect(ownerHeader, { left: 160, width: 120 });
+    const restoreElementFromPoint = mockElementFromPoint(ownerHeader);
+
+    fireEvent.pointerDown(scoreHandle, { button: 0, clientX: 340, clientY: 16 });
+    fireEvent.pointerMove(document, { clientX: 260, clientY: 16 });
+
+    expect(ownerHeader).toHaveAttribute("data-drop-target", "true");
+    expect(ownerHeader).toHaveAttribute("data-drop-placement", "before");
+    expect(ownerHeader).toHaveAttribute("data-drop-destination", "true");
+    expect(scoreHeader).not.toHaveAttribute("data-drop-destination");
+
+    fireEvent.pointerUp(document, { clientX: 260, clientY: 16 });
+    restoreElementFromPoint();
+  });
+
+  it("highlights and uses the immediate right header as a destination slot", () => {
+    const onColumnOrderChange = vi.fn();
+    const orderedColumns: Array<DataTableColumn<Row>> = [
+      columns[0]!,
+      {
+        id: "owner",
+        header: "Owner",
+        renderCell: (row) => row.owner
+      },
+      columns[1]!
+    ];
+
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={orderedColumns}
+        getRowId={(row) => row.id}
+        enableColumnReordering
+        defaultColumnOrder={["company", "owner", "score"]}
+        onColumnOrderChange={onColumnOrderChange}
+      />
+    );
+
+    const companyHandle = screen.getByRole("button", { name: "Reorder Company" });
+    const ownerHeader = container.querySelector<HTMLElement>('.rdtg-headerCell[data-column-id="owner"]')!;
+    mockClientRect(ownerHeader, { left: 160, width: 120 });
+    const restoreElementFromPoint = mockElementFromPoint(ownerHeader);
+
+    fireEvent.pointerDown(companyHandle, { button: 0, clientX: 16, clientY: 16 });
+    fireEvent.pointerMove(document, { clientX: 260, clientY: 16 });
+
+    expect(ownerHeader).toHaveAttribute("data-drop-target", "true");
+    expect(ownerHeader).toHaveAttribute("data-drop-placement", "after");
+    expect(ownerHeader).toHaveAttribute("data-drop-destination", "true");
+
+    fireEvent.pointerUp(document, { clientX: 260, clientY: 16 });
+    restoreElementFromPoint();
+
+    expect(onColumnOrderChange).toHaveBeenCalledWith(["owner", "company", "score"]);
+  });
+
+  it("marks pinned cross-region reorder targets invalid and does not emit reorder", () => {
+    const onColumnOrderChange = vi.fn();
+    const pinnedColumns: Array<DataTableColumn<Row>> = [
+      columns[0]!,
+      columns[1]!,
+      {
+        id: "owner",
+        header: "Owner",
+        renderCell: (row) => row.owner
+      }
+    ];
+
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={pinnedColumns}
+        getRowId={(row) => row.id}
+        enableColumnReordering
+        defaultColumnPinning={{ left: ["company"] }}
+        onColumnOrderChange={onColumnOrderChange}
+      />
+    );
+
+    const companyHandle = screen.getByRole("button", { name: "Reorder Company" });
+    const ownerHeader = container.querySelector<HTMLElement>('.rdtg-headerCell[data-column-id="owner"]')!;
+    mockClientRect(ownerHeader, { left: 160, width: 140 });
+    const restoreElementFromPoint = mockElementFromPoint(ownerHeader);
+
+    fireEvent.pointerDown(companyHandle, { button: 0, clientX: 16, clientY: 16 });
+    fireEvent.pointerMove(document, { clientX: 180, clientY: 16 });
+
+    expect(ownerHeader).toHaveAttribute("data-drop-target", "true");
+    expect(ownerHeader).toHaveAttribute("data-drop-valid", "false");
+
+    fireEvent.pointerUp(document, { clientX: 180, clientY: 16 });
+    restoreElementFromPoint();
+
+    expect(onColumnOrderChange).not.toHaveBeenCalled();
+  });
+
+  it("scrolls the desktop frame horizontally when active reorder nears an edge", () => {
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        enableColumnReordering
+      />
+    );
+
+    const desktopFrame = container.querySelector<HTMLElement>(".rdtg-desktopFrame")!;
+    Object.defineProperties(desktopFrame, {
+      clientWidth: { configurable: true, value: 320 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+      scrollWidth: { configurable: true, value: 760 }
+    });
+    mockClientRect(desktopFrame, { left: 0, width: 320 });
+
+    const scoreHandle = screen.getByRole("button", { name: "Reorder Score" });
+    const companyHeader = container.querySelector<HTMLElement>('.rdtg-headerCell[data-column-id="company"]')!;
+    mockClientRect(companyHeader, { left: 0, width: 160 });
+    const restoreElementFromPoint = mockElementFromPoint(companyHeader);
+
+    fireEvent.pointerDown(scoreHandle, { button: 0, clientX: 220, clientY: 16 });
+    fireEvent.pointerMove(document, { clientX: 318, clientY: 16 });
+
+    expect(desktopFrame.scrollLeft).toBeGreaterThan(0);
+
+    fireEvent.pointerUp(document, { clientX: 318, clientY: 16 });
+    restoreElementFromPoint();
   });
 
   it("combines column order with pinning and visibility for saved-view layouts", async () => {
