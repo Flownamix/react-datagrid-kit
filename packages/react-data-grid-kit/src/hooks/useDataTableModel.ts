@@ -322,22 +322,27 @@ export function useDataTableModel<T>({
     () => pruneCollapsedIds(collapsedIds, groups),
     [collapsedIds, groups]
   );
+  const serverVirtualizationEnabled = Boolean(serverVirtualization);
+  const serverHasMoreRows = serverVirtualization?.hasMoreRows;
+  const serverLoadingMore = serverVirtualization?.loadingMore;
+  const serverLoadMoreError = serverVirtualization?.loadMoreError;
+  const serverShowEndSentinel = serverVirtualization?.showEndSentinel;
   const visibleItems = React.useMemo(
     () => {
       const normalizedOffset = Math.max(0, rowIndexOffset);
-      const hasMoreRows = serverVirtualization
-        ? serverVirtualization.hasMoreRows
+      const hasMoreRows = serverVirtualizationEnabled
+        ? serverHasMoreRows
           ?? (typeof totalRowCount === "number" ? totalRowCount > normalizedOffset + modeledRows.length : true)
         : false;
-      const showEndSentinel = serverVirtualization?.showEndSentinel
-        ?? (typeof serverVirtualization?.hasMoreRows === "boolean" || typeof totalRowCount === "number");
+      const showEndSentinel = serverShowEndSentinel
+        ?? (typeof serverHasMoreRows === "boolean" || typeof totalRowCount === "number");
 
       return groupRows({
         rows: modeledRows,
         groups,
         collapsedGroupIds: normalizedCollapsedIds,
         getRowId,
-        serverVirtualization: serverVirtualization
+        serverVirtualization: serverVirtualizationEnabled
           ? {
             enabled: true,
             showEndSentinel,
@@ -345,8 +350,8 @@ export function useDataTableModel<T>({
               ? undefined
               : {
                 hasMoreRows,
-                loadingMore: serverVirtualization.loadingMore,
-                loadMoreError: serverVirtualization.loadMoreError
+                loadingMore: serverLoadingMore,
+                loadMoreError: serverLoadMoreError
               }
           }
           : undefined
@@ -358,7 +363,11 @@ export function useDataTableModel<T>({
       modeledRows,
       normalizedCollapsedIds,
       rowIndexOffset,
-      serverVirtualization,
+      serverHasMoreRows,
+      serverLoadMoreError,
+      serverLoadingMore,
+      serverShowEndSentinel,
+      serverVirtualizationEnabled,
       totalRowCount
     ]
   );

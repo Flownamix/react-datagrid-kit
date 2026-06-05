@@ -573,6 +573,23 @@ function useServerVirtualizationCallbacks<T>({
   const groupRangeKeysRef = React.useRef(new Map<string, string>());
   const groupEndKeysRef = React.useRef(new Map<string, string>());
   const groupLoadStateKeysRef = React.useRef(new Map<string, string>());
+  const hasGroups = Boolean(groups?.length);
+  const groupById = React.useMemo(
+    () => new Map((groups ?? []).map((group) => [group.id, group])),
+    [groups]
+  );
+  const rowsIdentityKey = React.useMemo(
+    () => hasGroups ? "" : rowIdentityKey(visibleItems),
+    [hasGroups, visibleItems]
+  );
+  const groupedVisibleIndex = React.useMemo(
+    () => hasGroups ? indexGroupedVisibleItems(visibleItems) : undefined,
+    [hasGroups, visibleItems]
+  );
+  const groupedVirtualIndex = React.useMemo(
+    () => hasGroups ? indexGroupedVirtualItems(visibleItems, virtualItems) : undefined,
+    [hasGroups, visibleItems, virtualItems]
+  );
 
   React.useEffect(() => {
     if (!serverVirtualization || virtualItems.length === 0) {
@@ -580,7 +597,6 @@ function useServerVirtualizationCallbacks<T>({
     }
 
     if (!groups?.length) {
-      const rowsIdentityKey = rowIdentityKey(visibleItems);
       const rowsLoadStateKey = [
         rowsIdentityKey,
         serverVirtualization.loadingMore ? "loading" : "idle",
@@ -648,14 +664,28 @@ function useServerVirtualizationCallbacks<T>({
       return;
     }
 
+    if (!groupedVisibleIndex || !groupedVirtualIndex) {
+      return;
+    }
+
     const nextGroupRangeKeys = new Map<string, string>();
-    groups.forEach((group) => {
-      const range = groupRangeFromVirtualItems({ activeSurface, group, visibleItems, virtualItems });
+    groupedVirtualIndex.touchedGroupIds.forEach((groupId) => {
+      const group = groupById.get(groupId);
+      if (!group) {
+        return;
+      }
+
+      const range = groupRangeFromVirtualItems({
+        activeSurface,
+        group,
+        rows: groupedVisibleIndex.rowsByGroup.get(groupId) ?? [],
+        virtualItems: groupedVirtualIndex.itemsByGroup.get(groupId) ?? []
+      });
       if (!range) {
         return;
       }
 
-      const identityKey = groupIdentityKey(group.id, visibleItems);
+      const identityKey = groupedVisibleIndex.identityKeys.get(group.id) ?? "";
       const groupLoadStateKey = [
         identityKey,
         group.loadingMore ? "loading" : "idle",
@@ -715,7 +745,10 @@ function useServerVirtualizationCallbacks<T>({
     resolvedTotalRowCount,
     serverVirtualization,
     totalRowCountKnown,
-    visibleItems,
+    groupedVisibleIndex,
+    groupedVirtualIndex,
+    groupById,
+    rowsIdentityKey,
     visibleRows,
     virtualItems
   ]);
@@ -761,42 +794,42 @@ function rowRangeFromVirtualItems<T>({
 function groupRangeFromVirtualItems<T>({
   activeSurface,
   group,
-  visibleItems,
+  rows,
   virtualItems
 }: {
   activeSurface: DataTableVirtualSurface;
   group: NonNullable<DataTableProps<T>["groups"]>[number];
-  visibleItems: Array<DataTableVisibleItem<T>>;
-  virtualItems: Array<DataTableVirtualItem>;
+  rows: Array<Extract<DataTableVisibleItem<T>, { kind: "row" }>>;
+  virtualItems: Array<Extract<DataTableVisibleItem<T>, { kind: "row" | "loadMore" }>>;
 }) {
-  const groupRows = visibleItems.filter(
-    (item): item is Extract<DataTableVisibleItem<T>, { kind: "row" }> => item.kind === "row" && item.groupId === group.id
-  );
-  const loadedCount = group.loadedCount ?? groupRows.length;
+  const loadedCount = group.loadedCount ?? rows.length;
   const rowIndexOffset = Math.max(0, group.rowIndexOffset ?? 0);
-  const virtualLocalIndexes = virtualItems.flatMap((virtualItem) => {
-    const item = visibleItems[virtualItem.index];
-    if (!item) {
-      return [];
-    }
-
+  let minVirtualIndex: number | undefined;
+  let maxVirtualIndex: number | undefined;
+  virtualItems.forEach((item) => {
+    let virtualIndex: number | undefined;
     if (item.kind === "row" && item.groupId === group.id) {
-      return [item.groupIndex ?? 0];
+      virtualIndex = item.groupIndex ?? 0;
     }
 
     if (item.kind === "loadMore" && item.groupId === group.id) {
-      return [loadedCount];
+      virtualIndex = loadedCount;
     }
 
-    return [];
+    if (virtualIndex === undefined) {
+      return;
+    }
+
+    minVirtualIndex = minVirtualIndex === undefined ? virtualIndex : Math.min(minVirtualIndex, virtualIndex);
+    maxVirtualIndex = maxVirtualIndex === undefined ? virtualIndex : Math.max(maxVirtualIndex, virtualIndex);
   });
 
-  if (virtualLocalIndexes.length === 0) {
+  if (minVirtualIndex === undefined || maxVirtualIndex === undefined) {
     return undefined;
   }
 
-  const localStart = Math.min(...virtualLocalIndexes, loadedCount);
-  const localEnd = Math.min(Math.max(...virtualLocalIndexes) + 1, loadedCount);
+  const localStart = Math.min(minVirtualIndex, loadedCount);
+  const localEnd = Math.min(maxVirtualIndex + 1, loadedCount);
 
   return {
     surface: activeSurface,
@@ -804,23 +837,82 @@ function groupRangeFromVirtualItems<T>({
     groupId: group.id,
     startIndex: rowIndexOffset + localStart,
     endIndex: rowIndexOffset + localEnd,
-    rows: groupRows.slice(localStart, localEnd).map((item) => item.row),
+    rows: rows.slice(localStart, localEnd).map((item) => item.row),
     loadedCount,
     rowIndexOffset,
     totalCount: group.totalCount
   };
 }
 
+interface GroupedVisibleIndex<T> {
+  rowsByGroup: Map<string, Array<Extract<DataTableVisibleItem<T>, { kind: "row" }>>>;
+  identityKeys: Map<string, string>;
+}
+
+interface GroupedVirtualIndex<T> {
+  itemsByGroup: Map<string, Array<Extract<DataTableVisibleItem<T>, { kind: "row" | "loadMore" }>>>;
+  touchedGroupIds: Set<string>;
+}
+
+function indexGroupedVisibleItems<T>(visibleItems: Array<DataTableVisibleItem<T>>): GroupedVisibleIndex<T> {
+  const rowsByGroup = new Map<string, Array<Extract<DataTableVisibleItem<T>, { kind: "row" }>>>();
+  const identityPartsByGroup = new Map<string, string[]>();
+
+  visibleItems.forEach((item) => {
+    if ((item.kind !== "row" && item.kind !== "loadMore") || !item.groupId) {
+      return;
+    }
+
+    const identityParts = identityPartsByGroup.get(item.groupId) ?? [];
+    identityParts.push(`${item.kind}:${item.id}`);
+    identityPartsByGroup.set(item.groupId, identityParts);
+
+    if (item.kind === "row") {
+      const rows = rowsByGroup.get(item.groupId) ?? [];
+      rows.push(item);
+      rowsByGroup.set(item.groupId, rows);
+    }
+  });
+
+  const identityKeys = new Map<string, string>();
+  identityPartsByGroup.forEach((identityParts, groupId) => {
+    identityKeys.set(groupId, identityParts.join("|"));
+  });
+
+  return {
+    rowsByGroup,
+    identityKeys
+  };
+}
+
+function indexGroupedVirtualItems<T>(
+  visibleItems: Array<DataTableVisibleItem<T>>,
+  virtualItems: Array<DataTableVirtualItem>
+): GroupedVirtualIndex<T> {
+  const itemsByGroup = new Map<string, Array<Extract<DataTableVisibleItem<T>, { kind: "row" | "loadMore" }>>>();
+  const touchedGroupIds = new Set<string>();
+
+  virtualItems.forEach((virtualItem) => {
+    const item = visibleItems[virtualItem.index];
+    if ((item?.kind !== "row" && item?.kind !== "loadMore") || !item.groupId) {
+      return;
+    }
+
+    touchedGroupIds.add(item.groupId);
+    const items = itemsByGroup.get(item.groupId) ?? [];
+    items.push(item);
+    itemsByGroup.set(item.groupId, items);
+  });
+
+  return {
+    itemsByGroup,
+    touchedGroupIds
+  };
+}
+
 function rowIdentityKey<T>(visibleItems: Array<DataTableVisibleItem<T>>): string {
   return visibleItems
     .filter((item) => item.kind === "row" || item.kind === "loadMore")
-    .map((item) => `${item.kind}:${item.id}`)
-    .join("|");
-}
-
-function groupIdentityKey<T>(groupId: string, visibleItems: Array<DataTableVisibleItem<T>>): string {
-  return visibleItems
-    .filter((item) => (item.kind === "row" || item.kind === "loadMore") && item.groupId === groupId)
     .map((item) => `${item.kind}:${item.id}`)
     .join("|");
 }
