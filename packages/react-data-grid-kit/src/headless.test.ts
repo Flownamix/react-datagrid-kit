@@ -7,9 +7,12 @@ import type {
   DataTableColumnSizingState,
   DataTableColumnVisibilityState,
   DataTableDensity,
+  DataTableGroupLoadRequest,
   DataTableMotionPreference,
   DataTableRenderContext,
-  DataTableRowId
+  DataTableRowId,
+  DataTableRowsLoadRequest,
+  DataTableServerVirtualization
 } from "./headless";
 
 interface Row {
@@ -46,5 +49,9 @@ describe("headless entrypoint", () => {
     expectTypeOf<DataTableDensity>().toEqualTypeOf<"compact" | "comfortable">();
     expectTypeOf<DataTableMotionPreference>().toEqualTypeOf<"system" | "always" | "reduced">();
     expectTypeOf<DataTableRenderContext<Row>["setColumnOrder"]>().parameters.toEqualTypeOf<[DataTableColumnOrderUpdater]>();
+    expectTypeOf<DataTableServerVirtualization<Row>["onRowsEndReached"]>().parameter(0)
+      .toEqualTypeOf<DataTableRowsLoadRequest<Row>>();
+    expectTypeOf<DataTableServerVirtualization<Row>["onGroupEndReached"]>().parameter(0)
+      .toEqualTypeOf<DataTableGroupLoadRequest<Row>>();
   });
 });

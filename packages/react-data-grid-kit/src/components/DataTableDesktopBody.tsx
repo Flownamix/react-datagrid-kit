@@ -4,6 +4,7 @@ import type { DataTableEditingApi } from "../hooks/useDataTableEditing";
 import type { DataTableVirtualItem } from "../hooks/useDataTableModel";
 import type { DataTablePinnedLayout } from "../model/layout";
 import { DataTableGroupRow } from "./DataTableGroupRow";
+import { DataTableLoadMoreRow } from "./DataTableLoadMoreItem";
 import { DataTableRow } from "./DataTableRow";
 import { DataTableStatePanel } from "./DataTableStatePanel";
 
@@ -32,6 +33,7 @@ export interface DataTableDesktopBodyProps<T> {
   onSelectedChange: (rowId: DataTableRowId, checked: boolean) => void;
   pinned: DataTablePinnedLayout;
   renderGroupHeader: DataTableProps<T>["renderGroupHeader"];
+  renderLoadMore: NonNullable<DataTableProps<T>["serverVirtualization"]>["renderLoadMore"] | undefined;
   renderRowActions: DataTableProps<T>["renderRowActions"];
   rowAriaLabel: DataTableProps<T>["rowAriaLabel"];
   selectedIds: Set<string>;
@@ -69,6 +71,7 @@ export function DataTableDesktopBody<T>({
   onSelectedChange,
   pinned,
   renderGroupHeader,
+  renderLoadMore,
   renderRowActions,
   rowAriaLabel,
   selectedIds,
@@ -116,7 +119,15 @@ export function DataTableDesktopBody<T>({
                 data-kind={item.kind}
                 data-layout-motion={itemLayoutMotion ? "true" : undefined}
               >
-                {item.kind === "group" ? (
+                {item.kind === "loadMore" ? (
+                  <DataTableLoadMoreRow
+                    item={item}
+                    columns={totalColumnCount}
+                    rowIndex={rowIndexOffset + virtualItem.index + 2}
+                    icons={icons}
+                    renderLoadMore={renderLoadMore}
+                  />
+                ) : item.kind === "group" ? (
                   <DataTableGroupRow
                     group={item.group}
                     rows={item.rows}
@@ -309,8 +320,18 @@ function useExitingCollapsedRows<T>({
   visibleItems: Array<DataTableVisibleItem<T>>;
   virtualItems: Array<DataTableVirtualItem>;
 }): Array<ExitingCollapsedRow<T>> {
-  const previousRef = React.useRef(snapshotVisibleItems(visibleItems, virtualItems));
+  const currentItemKeys = React.useMemo(() => new Set(visibleItems.map(visibleItemKey)), [visibleItems]);
+  const currentVirtualItems = React.useMemo(
+    () => snapshotVirtualItems({ visibleItems, virtualItems }),
+    [visibleItems, virtualItems]
+  );
+  const previousRef = React.useRef({
+    items: visibleItems,
+    itemKeys: currentItemKeys,
+    virtualItems: currentVirtualItems
+  });
   const timersRef = React.useRef(new Map<string, number>());
+  const prefersReducedMotionRef = React.useRef(prefersReducedMotion);
   const [exitingRows, setExitingRows] = React.useState<Array<ExitingCollapsedRow<T>>>([]);
 
   React.useEffect(() => () => {
@@ -319,18 +340,32 @@ function useExitingCollapsedRows<T>({
   }, []);
 
   React.useLayoutEffect(() => {
-    const nextSnapshot = snapshotVisibleItems(visibleItems, virtualItems);
+    const previousSnapshot = previousRef.current;
+    const reducedMotionChanged = prefersReducedMotionRef.current !== prefersReducedMotion;
+    prefersReducedMotionRef.current = prefersReducedMotion;
+    const nextSnapshot = {
+      items: visibleItems,
+      itemKeys: currentItemKeys,
+      virtualItems: currentVirtualItems
+    };
 
     if (prefersReducedMotion) {
       timersRef.current.forEach((timerId) => window.clearTimeout(timerId));
       timersRef.current.clear();
       previousRef.current = nextSnapshot;
-      window.setTimeout(() => setExitingRows([]), 0);
+      if (reducedMotionChanged) {
+        window.setTimeout(() => setExitingRows([]), 0);
+      }
+      return;
+    }
+
+    if (previousSnapshot.items === visibleItems) {
+      previousRef.current = nextSnapshot;
       return;
     }
 
     const collapsed = new Set(collapsedGroupIds);
-    const exiting = previousRef.current.items.flatMap((previousItem): Array<ExitingCollapsedRow<T>> => {
+    const exiting = previousSnapshot.items.flatMap((previousItem): Array<ExitingCollapsedRow<T>> => {
       if (previousItem.kind !== "row" || !previousItem.groupId || !collapsed.has(previousItem.groupId)) {
         return [];
       }
@@ -340,7 +375,7 @@ function useExitingCollapsedRows<T>({
         return [];
       }
 
-      const previousVirtualItem = previousRef.current.virtualItems.get(rowKey);
+      const previousVirtualItem = previousSnapshot.virtualItems.get(rowKey);
       if (!previousVirtualItem) {
         return [];
       }
@@ -378,7 +413,7 @@ function useExitingCollapsedRows<T>({
       }, COLLAPSE_EXIT_DURATION);
       timersRef.current.set(row.key, timerId);
     });
-  }, [collapsedGroupIds, prefersReducedMotion, visibleItems, virtualItems]);
+  }, [collapsedGroupIds, currentItemKeys, currentVirtualItems, prefersReducedMotion, visibleItems]);
 
   return prefersReducedMotion ? [] : exitingRows;
 }
@@ -405,11 +440,13 @@ function usePrefersReducedMotion<T>(motion: DataTableProps<T>["motion"]): boolea
   return motion === "reduced" || (motion === "system" && systemPrefersReduced);
 }
 
-function snapshotVisibleItems<T>(
-  visibleItems: Array<DataTableVisibleItem<T>>,
-  virtualItems: Array<DataTableVirtualItem>
-) {
-  const itemKeys = new Set(visibleItems.map(visibleItemKey));
+function snapshotVirtualItems<T>({
+  visibleItems,
+  virtualItems
+}: {
+  visibleItems: Array<DataTableVisibleItem<T>>;
+  virtualItems: Array<DataTableVirtualItem>;
+}): Map<string, DataTableVirtualItem> {
   const virtualItemMap = new Map<string, DataTableVirtualItem>();
 
   virtualItems.forEach((virtualItem) => {
@@ -419,11 +456,7 @@ function snapshotVisibleItems<T>(
     }
   });
 
-  return {
-    items: visibleItems,
-    itemKeys,
-    virtualItems: virtualItemMap
-  };
+  return virtualItemMap;
 }
 
 function snapshotVirtualLayout<T>({

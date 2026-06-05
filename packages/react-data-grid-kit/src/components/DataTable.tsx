@@ -8,11 +8,12 @@ import type { DataTableIcons, DataTableProps, DataTableRenderContext } from "../
 import { cx } from "../utils/cx";
 import { useDataTableEditing } from "../hooks/useDataTableEditing";
 import { useDataTableKeyboardNavigation } from "../hooks/useDataTableKeyboardNavigation";
-import { useDataTableModel } from "../hooks/useDataTableModel";
+import { useDataTableModel, type DataTableVirtualItem } from "../hooks/useDataTableModel";
 import { DataTableDesktopBody } from "./DataTableDesktopBody";
 import { DataTableHeader } from "./DataTableHeader";
 import { DataTableMobileList } from "./DataTableMobileList";
 import { DataTableToolbar } from "./DataTableToolbar";
+import type { DataTableVirtualSurface, DataTableVisibleItem } from "../types";
 
 const DEFAULT_ROW_HEIGHT = 56;
 const DEFAULT_GROUP_HEIGHT = 48;
@@ -56,6 +57,7 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
     loading,
     error,
     stale,
+    serverVirtualization,
     totalRowCount,
     rowIndexOffset = 0,
     loadingLabel = "Loading rows",
@@ -95,6 +97,8 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
   const quickSearchControlled = hasOwnProp(props, "quickSearch");
   const editingCellControlled = hasOwnProp(props, "editingCell");
   const mergedIcons = React.useMemo<DataTableIcons>(() => ({ ...defaultIcons, ...icons }), [icons]);
+  const serverOverscan = Math.max(0, serverVirtualization?.overscan ?? 8);
+  const serverLoadThreshold = Math.max(0, serverVirtualization?.loadThreshold ?? 8);
   const selectable = Boolean(onSelectedIdsChange || selectedIds);
   const selectionMutable = Boolean(onSelectedIdsChange);
   const hasActions = Boolean(renderRowActions);
@@ -151,6 +155,9 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
     defaultFilters,
     onFiltersChange,
     manualFiltering,
+    serverVirtualization,
+    totalRowCount,
+    rowIndexOffset,
     quickSearch,
     quickSearchControlled,
     defaultQuickSearch,
@@ -176,6 +183,9 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
     groupHeight
   });
   const totalColumnCount = visibleColumns.length + (selectable ? 1 : 0) + (hasActions ? 1 : 0);
+  const [mobileVirtualItems, setMobileVirtualItems] = React.useState<Array<DataTableVirtualItem>>([]);
+  const mobileFrameRef = React.useRef<HTMLDivElement | null>(null);
+  const activeSurface = useActiveDataTableSurface(parentRef, mobileFrameRef);
   const template = React.useMemo(
     () => gridTemplate({ columns: visibleColumns, selectable, hasActions, columnSizing: currentColumnSizing }),
     [currentColumnSizing, hasActions, selectable, visibleColumns]
@@ -236,7 +246,21 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
   const loadedRowCount = visibleRowsForContext.length;
   const resolvedTotalRowCount = Math.max(totalRowCount ?? loadedRowCount, loadedRowCount);
   const normalizedRowIndexOffset = Math.max(0, rowIndexOffset);
-  const ariaRowCount = groups ? visibleItems.length + 1 : resolvedTotalRowCount + 1;
+  const ariaRowCount = groups ? visibleItems.length + 1 : Math.max(resolvedTotalRowCount + 1, visibleItems.length + 1);
+  const activeVirtualItems = activeSurface === "mobile" ? mobileVirtualItems : renderedVirtualItems;
+  useServerVirtualizationCallbacks({
+    activeSurface,
+    groups,
+    loadedRowCount,
+    loadThreshold: serverLoadThreshold,
+    normalizedRowIndexOffset,
+    resolvedTotalRowCount,
+    serverVirtualization,
+    totalRowCountKnown: totalRowCount !== undefined,
+    visibleItems,
+    visibleRows: visibleRowsForContext,
+    virtualItems: activeVirtualItems
+  });
   const renderContext = React.useMemo<DataTableRenderContext<T>>(() => ({
     rows,
     columns,
@@ -385,6 +409,7 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
             onSelectedChange={handleRowSelection}
             pinned={pinned}
             renderGroupHeader={renderGroupHeader}
+            renderLoadMore={serverVirtualization?.renderLoadMore}
             renderRowActions={renderRowActions}
             rowAriaLabel={rowAriaLabel}
             selectedIds={selectedSet}
@@ -401,6 +426,11 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
       <DataTableMobileList
         visibleItems={visibleItems}
         contentMotionKey={contentMotionKey}
+        mobileHeight={mobileHeight}
+        rowHeight={rowHeight}
+        groupHeight={groupHeight}
+        overscan={serverOverscan}
+        mobileFrameRef={mobileFrameRef}
         renderCard={renderCard}
         columns={visibleColumns}
         icons={mergedIcons}
@@ -424,6 +454,8 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
         onSelectedChange={handleRowSelection}
         collapsedGroupIds={normalizedCollapsedIds}
         onGroupToggle={handleGroupToggle}
+        onVirtualItemsChange={setMobileVirtualItems}
+        renderLoadMore={serverVirtualization?.renderLoadMore}
         renderMobileGroupHeader={renderMobileGroupHeader}
       />
       {renderFooter ? (
@@ -437,4 +469,450 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
 
 function hasOwnProp<T extends object, K extends PropertyKey>(value: T, key: K): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function useActiveDataTableSurface(
+  desktopFrameRef: React.MutableRefObject<HTMLElement | null>,
+  mobileFrameRef: React.MutableRefObject<HTMLElement | null>
+): DataTableVirtualSurface {
+  const [surface, setSurface] = React.useState<DataTableVirtualSurface>(() => fallbackActiveSurface());
+
+  React.useLayoutEffect(() => {
+    const updateSurface = () => setSurface(resolveActiveSurface(desktopFrameRef.current, mobileFrameRef.current));
+    updateSurface();
+
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(updateSurface) : undefined;
+    if (desktopFrameRef.current && resizeObserver) {
+      resizeObserver.observe(desktopFrameRef.current);
+    }
+    if (mobileFrameRef.current && resizeObserver) {
+      resizeObserver.observe(mobileFrameRef.current);
+    }
+
+    window.addEventListener("resize", updateSurface);
+    const media = typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 720px)") : undefined;
+    media?.addEventListener("change", updateSurface);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateSurface);
+      media?.removeEventListener("change", updateSurface);
+    };
+  }, [desktopFrameRef, mobileFrameRef]);
+
+  return surface;
+}
+
+function resolveActiveSurface(
+  desktopFrame: HTMLElement | null,
+  mobileFrame: HTMLElement | null
+): DataTableVirtualSurface {
+  const desktopVisible = isFrameDisplayed(desktopFrame);
+  const mobileVisible = isFrameDisplayed(mobileFrame);
+
+  if (mobileVisible && !desktopVisible) {
+    return "mobile";
+  }
+
+  if (desktopVisible && !mobileVisible) {
+    return "desktop";
+  }
+
+  return fallbackActiveSurface();
+}
+
+function isFrameDisplayed(frame: HTMLElement | null): boolean {
+  if (!frame || typeof window === "undefined" || typeof window.getComputedStyle !== "function") {
+    return false;
+  }
+
+  const style = window.getComputedStyle(frame);
+  return style.display !== "none" && style.visibility !== "hidden";
+}
+
+function fallbackActiveSurface(): DataTableVirtualSurface {
+  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+    return window.matchMedia("(max-width: 720px)").matches ? "mobile" : "desktop";
+  }
+
+  return "desktop";
+}
+
+function useServerVirtualizationCallbacks<T>({
+  activeSurface,
+  groups,
+  loadedRowCount,
+  loadThreshold,
+  normalizedRowIndexOffset,
+  resolvedTotalRowCount,
+  serverVirtualization,
+  totalRowCountKnown,
+  visibleItems,
+  visibleRows,
+  virtualItems
+}: {
+  activeSurface: DataTableVirtualSurface;
+  groups: Array<NonNullable<DataTableProps<T>["groups"]>[number]> | undefined;
+  loadedRowCount: number;
+  loadThreshold: number;
+  normalizedRowIndexOffset: number;
+  resolvedTotalRowCount: number;
+  serverVirtualization: DataTableProps<T>["serverVirtualization"];
+  totalRowCountKnown: boolean;
+  visibleItems: Array<DataTableVisibleItem<T>>;
+  visibleRows: T[];
+  virtualItems: Array<DataTableVirtualItem>;
+}) {
+  const rowsRangeKeyRef = React.useRef<string | undefined>(undefined);
+  const rowsEndKeyRef = React.useRef<string | undefined>(undefined);
+  const rowsLoadStateKeyRef = React.useRef<string | undefined>(undefined);
+  const groupRangeKeysRef = React.useRef(new Map<string, string>());
+  const groupEndKeysRef = React.useRef(new Map<string, string>());
+  const groupLoadStateKeysRef = React.useRef(new Map<string, string>());
+  const hasGroups = Boolean(groups?.length);
+  const groupById = React.useMemo(
+    () => new Map((groups ?? []).map((group) => [group.id, group])),
+    [groups]
+  );
+  const rowsIdentityKey = React.useMemo(
+    () => hasGroups ? "" : rowIdentityKey(visibleItems),
+    [hasGroups, visibleItems]
+  );
+  const groupedVisibleIndex = React.useMemo(
+    () => hasGroups ? indexGroupedVisibleItems(visibleItems) : undefined,
+    [hasGroups, visibleItems]
+  );
+  const groupedVirtualIndex = React.useMemo(
+    () => hasGroups ? indexGroupedVirtualItems(visibleItems, virtualItems) : undefined,
+    [hasGroups, visibleItems, virtualItems]
+  );
+
+  React.useEffect(() => {
+    if (!serverVirtualization || virtualItems.length === 0) {
+      return;
+    }
+
+    if (!groups?.length) {
+      const rowsLoadStateKey = [
+        rowsIdentityKey,
+        serverVirtualization.loadingMore ? "loading" : "idle",
+        serverVirtualization.loadMoreError ? "error" : "ok",
+        serverVirtualization.retryKey ?? "none"
+      ].join(":");
+      if (rowsLoadStateKeyRef.current !== rowsLoadStateKey) {
+        rowsLoadStateKeyRef.current = rowsLoadStateKey;
+        rowsEndKeyRef.current = undefined;
+      }
+
+      const range = rowRangeFromVirtualItems({
+        activeSurface,
+        loadedRowCount,
+        normalizedRowIndexOffset,
+        resolvedTotalRowCount,
+        visibleRows,
+        virtualItems
+      });
+
+      if (range) {
+        const rangeKey = [
+          rowsIdentityKey,
+          range.surface,
+          range.startIndex,
+          range.endIndex,
+          range.loadedCount,
+          range.totalRowCount,
+          range.rowIndexOffset
+        ].join(":");
+        if (rowsRangeKeyRef.current !== rangeKey) {
+          rowsRangeKeyRef.current = rangeKey;
+          serverVirtualization.onRowsRangeChange?.(range);
+        }
+
+        const hasMoreRows = serverVirtualization.hasMoreRows
+          ?? (totalRowCountKnown
+            ? resolvedTotalRowCount > normalizedRowIndexOffset + loadedRowCount
+            : serverVirtualization.onRowsEndReached !== undefined);
+        const reachesEnd = range.endIndex - normalizedRowIndexOffset >= Math.max(0, loadedRowCount - loadThreshold);
+        if (
+          hasMoreRows
+          && reachesEnd
+          && !serverVirtualization.loadingMore
+          && !serverVirtualization.loadMoreError
+        ) {
+          const requestKey = [
+            rowsIdentityKey,
+            serverVirtualization.retryKey ?? "none",
+            range.surface,
+            normalizedRowIndexOffset,
+            loadedRowCount,
+            resolvedTotalRowCount
+          ].join(":");
+          if (rowsEndKeyRef.current !== requestKey) {
+            rowsEndKeyRef.current = requestKey;
+            serverVirtualization.onRowsEndReached?.({
+              ...range,
+              requestedStartIndex: normalizedRowIndexOffset + loadedRowCount
+            });
+          }
+        }
+      }
+
+      return;
+    }
+
+    if (!groupedVisibleIndex || !groupedVirtualIndex) {
+      return;
+    }
+
+    const nextGroupRangeKeys = new Map<string, string>();
+    groupedVirtualIndex.touchedGroupIds.forEach((groupId) => {
+      const group = groupById.get(groupId);
+      if (!group) {
+        return;
+      }
+
+      const range = groupRangeFromVirtualItems({
+        activeSurface,
+        group,
+        rows: groupedVisibleIndex.rowsByGroup.get(groupId) ?? [],
+        virtualItems: groupedVirtualIndex.itemsByGroup.get(groupId) ?? []
+      });
+      if (!range) {
+        return;
+      }
+
+      const identityKey = groupedVisibleIndex.identityKeys.get(group.id) ?? "";
+      const groupLoadStateKey = [
+        identityKey,
+        group.loadingMore ? "loading" : "idle",
+        group.loadMoreError ? "error" : "ok",
+        serverVirtualization.retryKey ?? "none"
+      ].join(":");
+      if (groupLoadStateKeysRef.current.get(group.id) !== groupLoadStateKey) {
+        groupLoadStateKeysRef.current.set(group.id, groupLoadStateKey);
+        groupEndKeysRef.current.delete(group.id);
+      }
+
+      const rangeKey = [
+        identityKey,
+        range.surface,
+        range.groupId,
+        range.startIndex,
+        range.endIndex,
+        range.loadedCount,
+        range.rowIndexOffset,
+        range.totalCount ?? "unknown"
+      ].join(":");
+      nextGroupRangeKeys.set(group.id, rangeKey);
+      if (groupRangeKeysRef.current.get(group.id) !== rangeKey) {
+        serverVirtualization.onGroupRangeChange?.(range);
+      }
+
+      const hasMoreRows = group.hasMoreRows
+        ?? Boolean(group.state === "partial" || (typeof group.totalCount === "number" && group.totalCount > range.loadedCount));
+      const reachesEnd = range.endIndex >= Math.max(0, range.loadedCount - loadThreshold);
+      if (hasMoreRows && reachesEnd && !group.loadingMore && !group.loadMoreError) {
+        const requestKey = [
+          identityKey,
+          serverVirtualization.retryKey ?? "none",
+          range.surface,
+          group.id,
+          range.rowIndexOffset,
+          range.loadedCount,
+          range.totalCount ?? "unknown"
+        ].join(":");
+        if (groupEndKeysRef.current.get(group.id) !== requestKey) {
+          groupEndKeysRef.current.set(group.id, requestKey);
+          serverVirtualization.onGroupEndReached?.({
+            ...range,
+            requestedStartIndex: range.rowIndexOffset + range.loadedCount
+          });
+        }
+      }
+    });
+
+    groupRangeKeysRef.current = nextGroupRangeKeys;
+  }, [
+    activeSurface,
+    groups,
+    loadedRowCount,
+    loadThreshold,
+    normalizedRowIndexOffset,
+    resolvedTotalRowCount,
+    serverVirtualization,
+    totalRowCountKnown,
+    groupedVisibleIndex,
+    groupedVirtualIndex,
+    groupById,
+    rowsIdentityKey,
+    visibleRows,
+    virtualItems
+  ]);
+}
+
+function rowRangeFromVirtualItems<T>({
+  activeSurface,
+  loadedRowCount,
+  normalizedRowIndexOffset,
+  resolvedTotalRowCount,
+  visibleRows,
+  virtualItems
+}: {
+  activeSurface: DataTableVirtualSurface;
+  loadedRowCount: number;
+  normalizedRowIndexOffset: number;
+  resolvedTotalRowCount: number;
+  visibleRows: T[];
+  virtualItems: Array<DataTableVirtualItem>;
+}) {
+  const first = virtualItems[0];
+  const last = virtualItems.at(-1);
+  if (!first || !last) {
+    return undefined;
+  }
+
+  const localStart = Math.min(first.index, loadedRowCount);
+  const localEnd = Math.min(last.index + 1, loadedRowCount);
+  const startIndex = normalizedRowIndexOffset + localStart;
+  const endIndex = normalizedRowIndexOffset + localEnd;
+
+  return {
+    surface: activeSurface,
+    startIndex,
+    endIndex,
+    rows: visibleRows.slice(localStart, localEnd),
+    loadedCount: loadedRowCount,
+    totalRowCount: resolvedTotalRowCount,
+    rowIndexOffset: normalizedRowIndexOffset
+  };
+}
+
+function groupRangeFromVirtualItems<T>({
+  activeSurface,
+  group,
+  rows,
+  virtualItems
+}: {
+  activeSurface: DataTableVirtualSurface;
+  group: NonNullable<DataTableProps<T>["groups"]>[number];
+  rows: Array<Extract<DataTableVisibleItem<T>, { kind: "row" }>>;
+  virtualItems: Array<Extract<DataTableVisibleItem<T>, { kind: "row" | "loadMore" }>>;
+}) {
+  const loadedCount = group.loadedCount ?? rows.length;
+  const rowIndexOffset = Math.max(0, group.rowIndexOffset ?? 0);
+  let minVirtualIndex: number | undefined;
+  let maxVirtualIndex: number | undefined;
+  virtualItems.forEach((item) => {
+    let virtualIndex: number | undefined;
+    if (item.kind === "row" && item.groupId === group.id) {
+      virtualIndex = item.groupIndex ?? 0;
+    }
+
+    if (item.kind === "loadMore" && item.groupId === group.id) {
+      virtualIndex = loadedCount;
+    }
+
+    if (virtualIndex === undefined) {
+      return;
+    }
+
+    minVirtualIndex = minVirtualIndex === undefined ? virtualIndex : Math.min(minVirtualIndex, virtualIndex);
+    maxVirtualIndex = maxVirtualIndex === undefined ? virtualIndex : Math.max(maxVirtualIndex, virtualIndex);
+  });
+
+  if (minVirtualIndex === undefined || maxVirtualIndex === undefined) {
+    return undefined;
+  }
+
+  const localStart = Math.min(minVirtualIndex, loadedCount);
+  const localEnd = Math.min(maxVirtualIndex + 1, loadedCount);
+
+  return {
+    surface: activeSurface,
+    group,
+    groupId: group.id,
+    startIndex: rowIndexOffset + localStart,
+    endIndex: rowIndexOffset + localEnd,
+    rows: rows.slice(localStart, localEnd).map((item) => item.row),
+    loadedCount,
+    rowIndexOffset,
+    totalCount: group.totalCount
+  };
+}
+
+interface GroupedVisibleIndex<T> {
+  rowsByGroup: Map<string, Array<Extract<DataTableVisibleItem<T>, { kind: "row" }>>>;
+  identityKeys: Map<string, string>;
+}
+
+interface GroupedVirtualIndex<T> {
+  itemsByGroup: Map<string, Array<Extract<DataTableVisibleItem<T>, { kind: "row" | "loadMore" }>>>;
+  touchedGroupIds: Set<string>;
+}
+
+function indexGroupedVisibleItems<T>(visibleItems: Array<DataTableVisibleItem<T>>): GroupedVisibleIndex<T> {
+  const rowsByGroup = new Map<string, Array<Extract<DataTableVisibleItem<T>, { kind: "row" }>>>();
+  const identityPartsByGroup = new Map<string, string[]>();
+
+  visibleItems.forEach((item) => {
+    if ((item.kind !== "row" && item.kind !== "loadMore") || !item.groupId) {
+      return;
+    }
+
+    const identityParts = identityPartsByGroup.get(item.groupId) ?? [];
+    identityParts.push(`${item.kind}:${item.id}`);
+    identityPartsByGroup.set(item.groupId, identityParts);
+
+    if (item.kind === "row") {
+      const rows = rowsByGroup.get(item.groupId) ?? [];
+      rows.push(item);
+      rowsByGroup.set(item.groupId, rows);
+    }
+  });
+
+  const identityKeys = new Map<string, string>();
+  identityPartsByGroup.forEach((identityParts, groupId) => {
+    identityKeys.set(groupId, identityParts.join("|"));
+  });
+
+  return {
+    rowsByGroup,
+    identityKeys
+  };
+}
+
+function indexGroupedVirtualItems<T>(
+  visibleItems: Array<DataTableVisibleItem<T>>,
+  virtualItems: Array<DataTableVirtualItem>
+): GroupedVirtualIndex<T> {
+  const itemsByGroup = new Map<string, Array<Extract<DataTableVisibleItem<T>, { kind: "row" | "loadMore" }>>>();
+  const touchedGroupIds = new Set<string>();
+
+  virtualItems.forEach((virtualItem) => {
+    const item = visibleItems[virtualItem.index];
+    if ((item?.kind !== "row" && item?.kind !== "loadMore") || !item.groupId) {
+      return;
+    }
+
+    touchedGroupIds.add(item.groupId);
+    const items = itemsByGroup.get(item.groupId) ?? [];
+    items.push(item);
+    itemsByGroup.set(item.groupId, items);
+  });
+
+  return {
+    itemsByGroup,
+    touchedGroupIds
+  };
+}
+
+function rowIdentityKey<T>(visibleItems: Array<DataTableVisibleItem<T>>): string {
+  return visibleItems
+    .filter((item) => item.kind === "row" || item.kind === "loadMore")
+    .map((item) => `${item.kind}:${item.id}`)
+    .join("|");
 }

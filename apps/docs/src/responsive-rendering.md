@@ -1,6 +1,6 @@
 # Responsive Rendering
 
-`DataTable` renders a desktop grid and a mobile list from the same modeled data. Desktop uses grid roles, sticky headers, virtualization, pinned columns, resize handles, and keyboard cell navigation. Mobile uses list semantics with either built-in fields or app-owned cards.
+`DataTable` renders a desktop grid and a virtualized mobile list from the same modeled data. Desktop uses grid roles, sticky headers, virtualization, pinned columns, resize handles, and keyboard cell navigation. Mobile uses list semantics with either built-in fields or app-owned cards.
 
 ## Built-In Mobile Fields
 
