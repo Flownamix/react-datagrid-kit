@@ -28,6 +28,7 @@ import type {
   DataTableFilterState,
   DataTableGroup,
   DataTableRowId,
+  DataTableServerVirtualization,
   DataTableSort,
   DataTableVisibleItem
 } from "../types";
@@ -49,6 +50,9 @@ export interface UseDataTableModelOptions<T> {
   defaultFilters?: DataTableFilterState;
   onFiltersChange?: (filters: DataTableFilterState) => void;
   manualFiltering: boolean;
+  serverVirtualization?: DataTableServerVirtualization<T>;
+  totalRowCount?: number;
+  rowIndexOffset: number;
   quickSearch?: string;
   quickSearchControlled?: boolean;
   defaultQuickSearch?: string;
@@ -78,6 +82,7 @@ export interface DataTableVirtualItem {
   key: React.Key;
   index: number;
   start: number;
+  size?: number;
 }
 
 export function useDataTableModel<T>({
@@ -96,6 +101,9 @@ export function useDataTableModel<T>({
   defaultFilters,
   onFiltersChange,
   manualFiltering,
+  serverVirtualization,
+  totalRowCount,
+  rowIndexOffset,
   quickSearch,
   quickSearchControlled,
   defaultQuickSearch,
@@ -315,8 +323,41 @@ export function useDataTableModel<T>({
     [collapsedIds, groups]
   );
   const visibleItems = React.useMemo(
-    () => groupRows({ rows: modeledRows, groups, collapsedGroupIds: normalizedCollapsedIds, getRowId }),
-    [getRowId, groups, modeledRows, normalizedCollapsedIds]
+    () => {
+      const normalizedOffset = Math.max(0, rowIndexOffset);
+      const hasMoreRows = serverVirtualization
+        ? serverVirtualization.hasMoreRows
+          ?? (typeof totalRowCount === "number" ? totalRowCount > normalizedOffset + modeledRows.length : false)
+        : false;
+
+      return groupRows({
+        rows: modeledRows,
+        groups,
+        collapsedGroupIds: normalizedCollapsedIds,
+        getRowId,
+        serverVirtualization: serverVirtualization
+          ? {
+            enabled: true,
+            rows: groups?.length
+              ? undefined
+              : {
+                hasMoreRows,
+                loadingMore: serverVirtualization.loadingMore,
+                loadMoreError: serverVirtualization.loadMoreError
+              }
+          }
+          : undefined
+      });
+    },
+    [
+      getRowId,
+      groups,
+      modeledRows,
+      normalizedCollapsedIds,
+      rowIndexOffset,
+      serverVirtualization,
+      totalRowCount
+    ]
   );
   const selectableVisibleRowIds = React.useMemo(
     () => visibleItems
@@ -338,7 +379,7 @@ export function useDataTableModel<T>({
     getScrollElement: () => parentRef.current,
     estimateSize: (index) => visibleItems[index]?.kind === "group" ? groupHeight : rowHeight,
     initialRect: { height, width: 1024 },
-    overscan: 8
+    overscan: Math.max(0, serverVirtualization?.overscan ?? 8)
   });
   const measuredVirtualItems = virtualizer.getVirtualItems();
   const renderedVirtualItems: Array<DataTableVirtualItem> = measuredVirtualItems.length > 0
@@ -346,7 +387,8 @@ export function useDataTableModel<T>({
     : visibleItems.map((item, index) => ({
       key: item.id,
       index,
-      start: offsetForIndex(visibleItems, index, rowHeight, groupHeight)
+      start: offsetForIndex(visibleItems, index, rowHeight, groupHeight),
+      size: visibleItems[index]?.kind === "group" ? groupHeight : rowHeight
     }));
   const contentMotionKey = React.useMemo(() => {
     const first = visibleItems[0]?.id ?? "empty";

@@ -60,6 +60,48 @@ The package does not own pagination controls. Use `totalRowCount` and `rowIndexO
 
 Grouped tables use group rows and visible grouped items for `aria-rowcount`; use group `totalCount`, `loadedCount`, `countLabel`, and `state` to describe server-side group completeness.
 
+## Server Virtualization
+
+Use `serverVirtualization` when the host app wants load signals from the active virtualized viewport. The table still does not fetch data. It reports ranges and end-reached requests; the host loads rows and passes the next `rows` or `groups` back in.
+
+```tsx
+<DataTable
+  rows={result.rows}
+  columns={columns}
+  getRowId={(row) => row.id}
+  totalRowCount={result.total}
+  rowIndexOffset={result.offset}
+  serverVirtualization={{
+    loadingMore: result.loadingMore,
+    loadMoreError: result.loadMoreError,
+    onRowsRangeChange: (range) => trackVisibleServerRange(range),
+    onRowsEndReached: ({ requestedStartIndex }) => {
+      fetchRows({ offset: requestedStartIndex });
+    }
+  }}
+/>
+```
+
+Ungrouped range indexes are absolute server row indexes. Grouped range indexes are local to the group:
+
+```tsx
+<DataTable
+  rows={result.rows}
+  columns={columns}
+  getRowId={(row) => row.id}
+  groups={result.groups}
+  serverVirtualization={{
+    onGroupEndReached: ({ groupId, requestedStartIndex }) => {
+      fetchGroupRows({ groupId, offset: requestedStartIndex });
+    }
+  }}
+/>
+```
+
+For grouped data, set `totalCount`, `loadedCount`, `hasMoreRows`, `loadingMore`, or `loadMoreError` on each group. If `hasMoreRows` is omitted, partial groups are treated as having more rows when `totalCount > loadedCount` or `state` is `"partial"`.
+
+Desktop and mobile lists are both virtualized. Only the active responsive surface emits server virtualization callbacks, so a hidden desktop grid and hidden mobile list do not duplicate fetch requests.
+
 ## Loading, Empty, Error, and Stale
 
 Use `loading` for initial or blocking loads. Use `stale` when old rows remain visible while a refresh is in flight. Use `error` when rows could not be loaded.
@@ -114,5 +156,6 @@ Use `onRowClick` for row activation and `onRowContextMenu` for app-owned context
 - Debounce server quick search in the host app if needed.
 - Keep `rows` stable until a replacement result arrives when using `stale`.
 - Pass `totalRowCount` and `rowIndexOffset` for server-paged, ungrouped data.
+- Use `serverVirtualization` for viewport-driven loading; de-dupe, cancellation, retries, and fetch state remain in the host app.
 - Use controlled `sort`, `filters`, and `quickSearch` when they are part of the query key.
 - Use stable row ids across refreshes so selection, editing, and grouping stay coherent.

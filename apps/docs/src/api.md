@@ -46,6 +46,7 @@ Core integration props:
 - `loading?: boolean`
 - `error?: boolean | Error`
 - `stale?: boolean`
+- `serverVirtualization?: DataTableServerVirtualization<T>`
 - `totalRowCount?: number`
 - `rowIndexOffset?: number`
 - `loadingLabel?: string`
@@ -103,6 +104,7 @@ Accessibility metadata:
 - Provide `ariaLabel` or `ariaLabelledBy` so the desktop grid and mobile list have a stable accessible name.
 - The desktop grid exposes `aria-rowcount`, `aria-colcount`, header `aria-colindex`, row `aria-rowindex`, and cell `aria-colindex` metadata. These indexes account for selection and action columns and remain meaningful when the desktop body is virtualized.
 - For ungrouped server-paged data, pass `totalRowCount` and zero-based `rowIndexOffset` so `aria-rowcount`, `aria-rowindex`, and slot summaries describe the full result set instead of only the loaded page.
+- Desktop and mobile bodies virtualize rendered items. Server virtualization callbacks report the active surface only, so hidden responsive renderers do not duplicate load requests.
 - Desktop keyboard navigation supports Arrow keys, Home/End, Ctrl/Cmd+Home, Ctrl/Cmd+End, and PageUp/PageDown. Page movement uses the configured row height and table height to move by a visible viewport-sized row step.
 - Use `rowAriaLabel` when the visible cells do not clearly identify a row for row-level activation.
 
@@ -113,6 +115,16 @@ Integration slots:
 - Slots receive `{ rows, columns, visibleColumns, quickSearch, setQuickSearch, columnVisibility, setColumnVisibility, columnOrder, setColumnOrder, columnSizing, setColumnSizing, columnPinning, setColumnPinning, visibleRows, visibleItems, visibleRowCount, totalRowCount, rowIndexOffset, selectedIds, selectedCount, allVisibleSelected, someVisibleSelected, sort, filters, loading, error, stale }`.
 - The table does not own pagination, navigation, exporting, or mutations inside these slots. Consumers render those controls and wire them to their app state.
 - `totalRowCount` defaults to the loaded visible row count. When a server result set is larger than the supplied `rows`, pass the known total count and the zero-based offset of the first loaded row so pagination footers can render ranges such as `251-300 of 842`.
+
+Server virtualization:
+
+- `serverVirtualization.overscan?: number` controls virtual overscan and defaults to `8`.
+- `serverVirtualization.loadThreshold?: number` controls when end-reached callbacks fire and defaults to `8`.
+- `hasMoreRows`, `loadingMore`, and `loadMoreError` describe ungrouped append state. If `hasMoreRows` is omitted, it defaults to `totalRowCount > rowIndexOffset + visibleRowCount`.
+- `onRowsRangeChange(range)` receives the active surface, absolute `[startIndex, endIndex)` range, loaded rows, `loadedCount`, `totalRowCount`, and `rowIndexOffset`.
+- `onRowsEndReached(request)` fires once per loaded window when the active range reaches the load threshold. `requestedStartIndex` is the next absolute server row index.
+- `onGroupRangeChange(range)` and `onGroupEndReached(request)` use group-local indexes. `requestedStartIndex` is the next group-local row index.
+- The table renders inline loading, error, and end sentinels for opted-in server virtualization state. These sentinels are not selectable, editable, or keyboard cell targets.
 
 First-class toolbar:
 
@@ -161,7 +173,7 @@ Related context and updater exports:
 
 - `DataTableQuickSearchUpdater` is the accepted value for `setQuickSearch`.
 - `DataTableColumnVisibilityUpdater`, `DataTableColumnOrderUpdater`, `DataTableColumnSizingUpdater`, and `DataTableColumnPinningUpdater` are the accepted values for the corresponding setter functions in `DataTableRenderContext`.
-- `DataTableVisibleItem<T>` describes entries in `visibleItems`; each item is either a group item with `{ kind: "group", group, rows }` or a row item with `{ kind: "row", row, groupId }`.
+- `DataTableVisibleItem<T>` describes entries in `visibleItems`; each item is a group item, a row item, or an opted-in server virtualization sentinel with `{ kind: "loadMore", scope, status }`.
 - `DataTableColumnContext<T>` is passed to `renderCell`, `quickSearchText`, `editable`, and `getEditValue`.
 - `DataTableFilterContext<T>` is passed to custom `filterControl` render functions.
 - `DataTableFilterActiveContext<T>` is passed to `filterActive` functions.
@@ -297,6 +309,9 @@ Inline edit render functions receive `{ row, rowId, column, value, setValue, com
 - `rowIds?: string[]`
 - `totalCount?: number`
 - `loadedCount?: number`
+- `hasMoreRows?: boolean`
+- `loadingMore?: boolean`
+- `loadMoreError?: ReactNode`
 - `countLabel?: ReactNode`
 - `state?: "loaded" | "loading" | "error" | "empty" | "partial"`
 - `summary?: ReactNode | ((summary) => ReactNode)`
@@ -316,6 +331,8 @@ Group notes:
 - `rowIds` references rows from the top-level `rows` prop. Use it when the server returns groups and a shared result row array.
 - `rows` embeds group-specific rows. Use it when the group payload already owns its row array.
 - `totalCount` describes the full server-side group size. `loadedCount` describes rows available to the table. If omitted, `loadedCount` falls back to visible loaded rows.
+- `hasMoreRows` overrides the group append default. If omitted, a group has more rows when `totalCount > loadedCount` or `state` is `"partial"`.
+- `loadingMore` and `loadMoreError` render inline group sentinels when `serverVirtualization` is enabled.
 - `countLabel` overrides the built-in count text.
 - `summary` renders additional group metadata. If it is a function, it receives `{ group, visibleRows, totalCount, loadedCount }`.
 - `progressValue` is a percentage from `0` to `100`; `progressLabel` labels the progress.

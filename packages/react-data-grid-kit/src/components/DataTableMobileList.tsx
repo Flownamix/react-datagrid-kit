@@ -1,5 +1,7 @@
 import * as React from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { DataTableEditingApi } from "../hooks/useDataTableEditing";
+import type { DataTableVirtualItem } from "../hooks/useDataTableModel";
 import type {
   DataTableColumn,
   DataTableGroup,
@@ -14,11 +16,16 @@ import { DataTableStatePanel } from "./DataTableStatePanel";
 import { DataTableSelectionCheckbox } from "./DataTableSelectionCheckbox";
 import { DataTableMobileGroupHeader } from "./DataTableMobileGroupHeader";
 import { DataTableMobileField } from "./DataTableMobileField";
+import { DataTableLoadMoreMobileItem } from "./DataTableLoadMoreItem";
 import { eventStartedInInteractiveElement, keyboardEventStartedInChild } from "../utils/interactiveEvents";
 
 export interface DataTableMobileListProps<T> {
   visibleItems: Array<DataTableVisibleItem<T>>;
   contentMotionKey: string;
+  mobileHeight: number;
+  rowHeight: number;
+  groupHeight: number;
+  overscan: number;
   renderCard?: (row: T) => React.ReactNode;
   columns: Array<DataTableColumn<T>>;
   icons: DataTableIcons;
@@ -42,6 +49,7 @@ export interface DataTableMobileListProps<T> {
   onSelectedChange: (rowId: DataTableRowId, checked: boolean) => void;
   collapsedGroupIds: string[];
   onGroupToggle: (groupId: string) => void;
+  onVirtualItemsChange?: (virtualItems: Array<DataTableVirtualItem>) => void;
   renderMobileGroupHeader?: (
     group: DataTableGroup<T>,
     summary: DataTableGroupSummary<T>,
@@ -52,6 +60,10 @@ export interface DataTableMobileListProps<T> {
 export function DataTableMobileList<T>({
   visibleItems,
   contentMotionKey,
+  mobileHeight,
+  rowHeight,
+  groupHeight,
+  overscan,
   renderCard,
   columns,
   icons,
@@ -75,10 +87,51 @@ export function DataTableMobileList<T>({
   onSelectedChange,
   collapsedGroupIds,
   onGroupToggle,
+  onVirtualItemsChange,
   renderMobileGroupHeader
 }: DataTableMobileListProps<T>): React.ReactElement {
+  const parentRef = React.useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual owns the mobile item measurement lifecycle.
+  const virtualizer = useVirtualizer({
+    count: visibleItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (index) => estimateMobileItemSize(visibleItems[index], rowHeight, groupHeight),
+    initialRect: { height: mobileHeight, width: 360 },
+    measureElement: (element) => {
+      const measured = element.getBoundingClientRect().height;
+      if (measured > 0) {
+        return measured;
+      }
+
+      return Number((element as HTMLElement).dataset.estimateSize) || rowHeight;
+    },
+    overscan
+  });
+  const measuredVirtualItems = virtualizer.getVirtualItems();
+  const renderedVirtualItems: Array<DataTableVirtualItem> = measuredVirtualItems.length > 0
+    ? measuredVirtualItems
+    : visibleItems.map((item, index) => ({
+      key: item.id,
+      index,
+      start: offsetForMobileIndex(visibleItems, index, rowHeight, groupHeight)
+    }));
+  const renderedVirtualItemsKey = renderedVirtualItems
+    .map((item) => `${item.index}:${item.start}`)
+    .join("|");
+  const notifiedVirtualItemsKeyRef = React.useRef<string | undefined>(undefined);
+
+  React.useEffect(() => {
+    if (notifiedVirtualItemsKeyRef.current === renderedVirtualItemsKey) {
+      return;
+    }
+
+    notifiedVirtualItemsKeyRef.current = renderedVirtualItemsKey;
+    onVirtualItemsChange?.(renderedVirtualItems);
+  }, [onVirtualItemsChange, renderedVirtualItems, renderedVirtualItemsKey]);
+
   return (
     <div
+      ref={parentRef}
       className="rdtg-mobileFrame"
       role="list"
       aria-label={ariaLabel}
@@ -92,8 +145,89 @@ export function DataTableMobileList<T>({
       ) : visibleItems.length === 0 ? (
         <DataTableStatePanel icons={icons} label={emptyLabel} state={emptyState} tone="empty" />
       ) : (
-        <div key={contentMotionKey} className="rdtg-mobileList">
-          {visibleItems.map((item) => {
+        <div key={contentMotionKey} className="rdtg-mobileList rdtg-mobileVirtualSpace" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+          {renderedVirtualItems.map((virtualItem) => {
+            const item = visibleItems[virtualItem.index];
+            if (!item) {
+              return null;
+            }
+            const estimatedSize = estimateMobileItemSize(item, rowHeight, groupHeight);
+
+            return (
+              <div
+                key={`${item.kind}:${item.id}`}
+                ref={virtualizer.measureElement}
+                className="rdtg-mobileVirtualItem"
+                data-index={virtualItem.index}
+                data-kind={item.kind}
+                data-estimate-size={estimatedSize}
+                style={{ top: `${virtualItem.start}px` }}
+              >
+                <MobileVisibleItem
+                  item={item}
+                  renderCard={renderCard}
+                  columns={columns}
+                  icons={icons}
+                  editing={editing}
+                  selectedIds={selectedIds}
+                  selectable={selectable}
+                  isRowSelectable={isRowSelectable}
+                  selectionMutable={selectionMutable}
+                  rowAriaLabel={rowAriaLabel}
+                  onRowClick={onRowClick}
+                  onSelectedChange={onSelectedChange}
+                  collapsedGroupIds={collapsedGroupIds}
+                  onGroupToggle={onGroupToggle}
+                  renderMobileGroupHeader={renderMobileGroupHeader}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface MobileVisibleItemProps<T> {
+  item: DataTableVisibleItem<T>;
+  renderCard?: (row: T) => React.ReactNode;
+  columns: Array<DataTableColumn<T>>;
+  icons: DataTableIcons;
+  editing: DataTableEditingApi<T>;
+  selectedIds: Set<DataTableRowId>;
+  selectable: boolean;
+  isRowSelectable?: (row: T) => boolean;
+  selectionMutable: boolean;
+  rowAriaLabel?: (row: T) => string;
+  onRowClick?: (row: T) => void;
+  onSelectedChange: (rowId: DataTableRowId, checked: boolean) => void;
+  collapsedGroupIds: string[];
+  onGroupToggle: (groupId: string) => void;
+  renderMobileGroupHeader?: (
+    group: DataTableGroup<T>,
+    summary: DataTableGroupSummary<T>,
+    context: DataTableGroupHeaderContext<T>
+  ) => React.ReactNode;
+}
+
+function MobileVisibleItem<T>({
+  item,
+  renderCard,
+  columns,
+  icons,
+  editing,
+  selectedIds,
+  selectable,
+  isRowSelectable,
+  selectionMutable,
+  rowAriaLabel,
+  onRowClick,
+  onSelectedChange,
+  collapsedGroupIds,
+  onGroupToggle,
+  renderMobileGroupHeader
+}: MobileVisibleItemProps<T>): React.ReactElement {
             if (item.kind === "group") {
               return (
                 <DataTableMobileGroupHeader
@@ -106,6 +240,10 @@ export function DataTableMobileList<T>({
                   renderMobileGroupHeader={renderMobileGroupHeader}
                 />
               );
+            }
+
+            if (item.kind === "loadMore") {
+              return <DataTableLoadMoreMobileItem item={item} icons={icons} />;
             }
 
             const rowId = item.id;
@@ -168,9 +306,33 @@ export function DataTableMobileList<T>({
                 )}
               </article>
             );
-          })}
-        </div>
-      )}
-    </div>
-  );
+}
+
+function estimateMobileItemSize<T>(
+  item: DataTableVisibleItem<T> | undefined,
+  rowHeight: number,
+  groupHeight: number
+): number {
+  if (item?.kind === "group") {
+    return Math.max(groupHeight, 64);
+  }
+
+  if (item?.kind === "loadMore") {
+    return Math.max(rowHeight, 52);
+  }
+
+  return Math.max(rowHeight, 96);
+}
+
+function offsetForMobileIndex<T>(
+  items: Array<DataTableVisibleItem<T>>,
+  index: number,
+  rowHeight: number,
+  groupHeight: number
+): number {
+  let offset = 0;
+  for (let cursor = 0; cursor < index; cursor += 1) {
+    offset += estimateMobileItemSize(items[cursor], rowHeight, groupHeight);
+  }
+  return offset;
 }

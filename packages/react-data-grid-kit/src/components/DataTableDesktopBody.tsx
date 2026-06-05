@@ -4,6 +4,7 @@ import type { DataTableEditingApi } from "../hooks/useDataTableEditing";
 import type { DataTableVirtualItem } from "../hooks/useDataTableModel";
 import type { DataTablePinnedLayout } from "../model/layout";
 import { DataTableGroupRow } from "./DataTableGroupRow";
+import { DataTableLoadMoreRow } from "./DataTableLoadMoreItem";
 import { DataTableRow } from "./DataTableRow";
 import { DataTableStatePanel } from "./DataTableStatePanel";
 
@@ -116,7 +117,14 @@ export function DataTableDesktopBody<T>({
                 data-kind={item.kind}
                 data-layout-motion={itemLayoutMotion ? "true" : undefined}
               >
-                {item.kind === "group" ? (
+                {item.kind === "loadMore" ? (
+                  <DataTableLoadMoreRow
+                    item={item}
+                    columns={totalColumnCount}
+                    rowIndex={rowIndexOffset + virtualItem.index + 2}
+                    icons={icons}
+                  />
+                ) : item.kind === "group" ? (
                   <DataTableGroupRow
                     group={item.group}
                     rows={item.rows}

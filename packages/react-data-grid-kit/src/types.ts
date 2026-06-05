@@ -140,6 +140,9 @@ export interface DataTableGroup<T> {
   rowIds?: DataTableRowId[];
   totalCount?: number;
   loadedCount?: number;
+  hasMoreRows?: boolean;
+  loadingMore?: boolean;
+  loadMoreError?: React.ReactNode;
   countLabel?: React.ReactNode;
   summary?: React.ReactNode | ((summary: DataTableGroupSummary<T>) => React.ReactNode);
   progressLabel?: React.ReactNode;
@@ -225,6 +228,53 @@ export interface DataTableToolbarConfig<T> {
   renderSummary?: (context: DataTableRenderContext<T>) => React.ReactNode;
 }
 
+export type DataTableVirtualSurface = "desktop" | "mobile";
+
+export interface DataTableRowsVirtualRange<T> {
+  surface: DataTableVirtualSurface;
+  startIndex: number;
+  endIndex: number;
+  visibleStartIndex: number;
+  visibleEndIndex: number;
+  rows: T[];
+  loadedCount: number;
+  totalRowCount: number;
+  rowIndexOffset: number;
+}
+
+export interface DataTableRowsLoadRequest<T> extends DataTableRowsVirtualRange<T> {
+  requestedStartIndex: number;
+}
+
+export interface DataTableGroupVirtualRange<T> {
+  surface: DataTableVirtualSurface;
+  group: DataTableGroup<T>;
+  groupId: string;
+  startIndex: number;
+  endIndex: number;
+  visibleStartIndex: number;
+  visibleEndIndex: number;
+  rows: T[];
+  loadedCount: number;
+  totalCount?: number;
+}
+
+export interface DataTableGroupLoadRequest<T> extends DataTableGroupVirtualRange<T> {
+  requestedStartIndex: number;
+}
+
+export interface DataTableServerVirtualization<T> {
+  overscan?: number;
+  loadThreshold?: number;
+  hasMoreRows?: boolean;
+  loadingMore?: boolean;
+  loadMoreError?: React.ReactNode;
+  onRowsRangeChange?: (range: DataTableRowsVirtualRange<T>) => void;
+  onRowsEndReached?: (request: DataTableRowsLoadRequest<T>) => void;
+  onGroupRangeChange?: (range: DataTableGroupVirtualRange<T>) => void;
+  onGroupEndReached?: (request: DataTableGroupLoadRequest<T>) => void;
+}
+
 export interface DataTableProps<T> {
   rows: T[];
   columns: Array<DataTableColumn<T>>;
@@ -265,6 +315,7 @@ export interface DataTableProps<T> {
   loading?: boolean;
   error?: boolean | Error;
   stale?: boolean;
+  serverVirtualization?: DataTableServerVirtualization<T>;
   totalRowCount?: number;
   rowIndexOffset?: number;
   loadingLabel?: string;
@@ -311,4 +362,14 @@ export interface DataTableProps<T> {
 
 export type DataTableVisibleItem<T> =
   | { kind: "group"; id: string; group: DataTableGroup<T>; rows: T[] }
-  | { kind: "row"; id: DataTableRowId; row: T; groupId?: string };
+  | { kind: "row"; id: DataTableRowId; row: T; groupId?: string; groupIndex?: number }
+  | {
+    kind: "loadMore";
+    id: string;
+    scope: "rows" | "group";
+    status: "loading" | "error" | "end";
+    group?: DataTableGroup<T>;
+    groupId?: string;
+    rowCount: number;
+    error?: React.ReactNode;
+  };

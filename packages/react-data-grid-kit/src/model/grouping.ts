@@ -1,3 +1,4 @@
+import type * as React from "react";
 import type { DataTableGroup, DataTableGroupSummary, DataTableRowId, DataTableVisibleItem } from "../types";
 
 export function defaultCollapsedIds<T>(groups: Array<DataTableGroup<T>> | undefined): string[] {
@@ -13,15 +14,35 @@ export function groupRows<T>({
   rows,
   groups,
   collapsedGroupIds,
-  getRowId
+  getRowId,
+  serverVirtualization
 }: {
   rows: T[];
   groups: Array<DataTableGroup<T>> | undefined;
   collapsedGroupIds: string[];
   getRowId: (row: T) => DataTableRowId;
+  serverVirtualization?: {
+    enabled: boolean;
+    rows?: {
+      hasMoreRows: boolean;
+      loadingMore?: boolean;
+      loadMoreError?: React.ReactNode;
+    };
+  };
 }): Array<DataTableVisibleItem<T>> {
   if (!groups?.length) {
-    return rows.map((row) => ({ kind: "row", id: getRowId(row), row }));
+    const rowItems = rows.map((row) => ({ kind: "row" as const, id: getRowId(row), row }));
+    const loadItem = serverVirtualization?.enabled && serverVirtualization.rows
+      ? loadMoreItem<T>({
+        scope: "rows",
+        rowCount: rowItems.length,
+        hasMoreRows: serverVirtualization.rows.hasMoreRows,
+        loadingMore: serverVirtualization.rows.loadingMore,
+        loadMoreError: serverVirtualization.rows.loadMoreError
+      })
+      : undefined;
+
+    return loadItem ? [...rowItems, loadItem] : rowItems;
   }
 
   const usedRowIds = new Set<DataTableRowId>();
@@ -40,14 +61,28 @@ export function groupRows<T>({
       return [groupItem];
     }
 
+    const rowItems = groupRows.map((row, groupIndex) => ({
+      kind: "row" as const,
+      id: getRowId(row),
+      row,
+      groupId: group.id,
+      groupIndex
+    }));
+    const groupLoadItem = serverVirtualization?.enabled
+      ? loadMoreItem({
+        scope: "group",
+        group,
+        rowCount: groupRows.length,
+        hasMoreRows: resolveGroupHasMoreRows(group, groupRows),
+        loadingMore: group.loadingMore,
+        loadMoreError: group.loadMoreError
+      })
+      : undefined;
+
     return [
       groupItem,
-      ...groupRows.map((row) => ({
-        kind: "row" as const,
-        id: getRowId(row),
-        row,
-        groupId: group.id
-      }))
+      ...rowItems,
+      ...(groupLoadItem ? [groupLoadItem] : [])
     ];
   });
 
@@ -84,6 +119,18 @@ export function summarizeGroup<T>(group: DataTableGroup<T>, rows: T[]): DataTabl
   };
 }
 
+export function resolveGroupHasMoreRows<T>(group: DataTableGroup<T>, rows: T[]): boolean {
+  if (typeof group.hasMoreRows === "boolean") {
+    return group.hasMoreRows;
+  }
+
+  const loadedCount = group.loadedCount ?? rows.length;
+  return Boolean(
+    group.state === "partial"
+    || (typeof group.totalCount === "number" && group.totalCount > loadedCount)
+  );
+}
+
 export function toggleCollapsedGroup(groupIds: string[], groupId: string): string[] {
   const next = new Set(groupIds);
   if (next.has(groupId)) {
@@ -107,4 +154,63 @@ function uniqueRows<T>(
     usedRowIds.add(rowId);
     return true;
   });
+}
+
+function loadMoreItem<T>({
+  scope,
+  group,
+  rowCount,
+  hasMoreRows,
+  loadingMore,
+  loadMoreError
+}: {
+  scope: "rows" | "group";
+  group?: DataTableGroup<T>;
+  rowCount: number;
+  hasMoreRows: boolean;
+  loadingMore?: boolean;
+  loadMoreError?: React.ReactNode;
+}): Extract<DataTableVisibleItem<T>, { kind: "loadMore" }> | undefined {
+  if (loadMoreError) {
+    return {
+      kind: "loadMore",
+      id: loadMoreItemId(scope, group?.id, "error"),
+      scope,
+      status: "error",
+      group,
+      groupId: group?.id,
+      rowCount,
+      error: loadMoreError
+    };
+  }
+
+  if (loadingMore) {
+    return {
+      kind: "loadMore",
+      id: loadMoreItemId(scope, group?.id, "loading"),
+      scope,
+      status: "loading",
+      group,
+      groupId: group?.id,
+      rowCount
+    };
+  }
+
+  if (!hasMoreRows) {
+    return {
+      kind: "loadMore",
+      id: loadMoreItemId(scope, group?.id, "end"),
+      scope,
+      status: "end",
+      group,
+      groupId: group?.id,
+      rowCount
+    };
+  }
+
+  return undefined;
+}
+
+function loadMoreItemId(scope: "rows" | "group", groupId: string | undefined, status: "loading" | "error" | "end"): string {
+  return scope === "group" ? `${groupId ?? "group"}:load-more:${status}` : `rows:load-more:${status}`;
 }

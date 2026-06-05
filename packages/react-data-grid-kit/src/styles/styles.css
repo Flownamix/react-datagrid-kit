@@ -731,6 +731,38 @@
   transform-origin: top center;
 }
 
+.rdtg-loadMoreRow {
+  background: var(--rdtg-color-surface-muted);
+  border-bottom: 1px solid var(--rdtg-color-border);
+  min-height: var(--rdtg-row-height);
+}
+
+.rdtg-loadMoreCell {
+  align-items: center;
+  color: var(--rdtg-color-text-muted);
+  display: flex;
+  min-height: var(--rdtg-row-height);
+  padding: 0 14px;
+}
+
+.rdtg-loadMoreContent {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rdtg-loadMoreTitle {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.rdtg-loadMoreRow[data-status="error"],
+.rdtg-mobileLoadMore[data-status="error"] {
+  background: var(--rdtg-color-danger-soft);
+  color: var(--rdtg-color-danger-strong);
+}
+
 .rdtg-row {
   --rdtg-row-background: var(--rdtg-color-surface);
 
@@ -1262,8 +1294,14 @@
   }
 
   .rdtg-mobileList {
-    display: grid;
-    gap: 0;
+    position: relative;
+    width: 100%;
+  }
+
+  .rdtg-mobileVirtualItem {
+    left: 0;
+    position: absolute;
+    right: 0;
   }
 
   .rdtg-mobileGroup {
@@ -1335,6 +1373,16 @@
     display: grid;
     gap: 10px;
     padding: 14px;
+  }
+
+  .rdtg-mobileLoadMore {
+    align-items: center;
+    background: var(--rdtg-color-surface-muted);
+    border-bottom: 1px solid var(--rdtg-color-border);
+    color: var(--rdtg-color-text-muted);
+    display: flex;
+    min-height: 52px;
+    padding: 12px 14px;
   }
 
   .rdtg-mobileSelection {

@@ -60,6 +60,77 @@ describe("groupRows", () => {
 
     expect(items.map((item) => item.id)).toEqual(["ready", "c"]);
   });
+
+  it("appends an ungrouped loading sentinel only when server virtualization is enabled", () => {
+    const items = groupRows({
+      rows,
+      getRowId: (row) => row.id,
+      collapsedGroupIds: [],
+      groups: undefined,
+      serverVirtualization: {
+        enabled: true,
+        rows: {
+          hasMoreRows: true,
+          loadingMore: true
+        }
+      }
+    });
+
+    expect(items.map((item) => item.kind)).toEqual(["row", "row", "row", "loadMore"]);
+    expect(items.at(-1)).toMatchObject({
+      kind: "loadMore",
+      scope: "rows",
+      status: "loading",
+      rowCount: 3
+    });
+  });
+
+  it("appends group sentinels for expanded partial groups", () => {
+    const items = groupRows({
+      rows,
+      getRowId: (row) => row.id,
+      collapsedGroupIds: [],
+      groups: [{
+        id: "ready",
+        label: "Ready",
+        rowIds: ["a", "b"],
+        totalCount: 4,
+        loadingMore: true
+      }],
+      serverVirtualization: {
+        enabled: true
+      }
+    });
+
+    expect(items.map((item) => item.kind)).toEqual(["group", "row", "row", "loadMore", "row"]);
+    expect(items[3]).toMatchObject({
+      kind: "loadMore",
+      scope: "group",
+      status: "loading",
+      groupId: "ready",
+      rowCount: 2
+    });
+  });
+
+  it("does not append group sentinels for collapsed groups", () => {
+    const items = groupRows({
+      rows,
+      getRowId: (row) => row.id,
+      collapsedGroupIds: ["ready"],
+      groups: [{
+        id: "ready",
+        label: "Ready",
+        rowIds: ["a", "b"],
+        totalCount: 4,
+        loadingMore: true
+      }],
+      serverVirtualization: {
+        enabled: true
+      }
+    });
+
+    expect(items.map((item) => item.kind)).toEqual(["group", "row"]);
+  });
 });
 
 describe("collapsed group normalization", () => {

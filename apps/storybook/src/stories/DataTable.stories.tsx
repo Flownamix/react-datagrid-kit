@@ -116,6 +116,17 @@ const groups: Array<DataTableGroup<AccountRow>> = [
   }
 ];
 
+const virtualizedAccounts: AccountRow[] = Array.from({ length: 30 }, (_, index) => {
+  const source = accounts[index % accounts.length]!;
+  return {
+    ...source,
+    id: `server-${String(index + 1).padStart(3, "0")}`,
+    name: `${source.name} ${index + 1}`,
+    pipeline: source.pipeline + index * 25000,
+    risk: Math.min(99, source.risk + (index % 5) * 3)
+  };
+});
+
 const localFilterColumns: Array<DataTableColumn<AccountRow>> = columns.map((column) => {
   if (column.id === "account") {
     return {
@@ -581,6 +592,94 @@ function FirstClassToolbarExample(args: DataTableProps<AccountRow>) {
   );
 }
 
+function ServerVirtualizedRowsExample(args: DataTableProps<AccountRow>) {
+  const [loadedCount, setLoadedCount] = useState(8);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadedRows = virtualizedAccounts.slice(0, loadedCount);
+
+  return (
+    <DataTable
+      {...args}
+      rows={loadedRows}
+      totalRowCount={virtualizedAccounts.length}
+      serverVirtualization={{
+        loadingMore,
+        onRowsEndReached: ({ requestedStartIndex }) => {
+          if (loadingMore || requestedStartIndex >= virtualizedAccounts.length) {
+            return;
+          }
+
+          setLoadingMore(true);
+          window.setTimeout(() => {
+            setLoadedCount((current) => Math.min(current + 6, virtualizedAccounts.length));
+            setLoadingMore(false);
+          }, 400);
+        }
+      }}
+      renderFooter={({ visibleRowCount, totalRowCount }) => (
+        <div className="story-tableFooter" aria-label="Virtualized server summary">
+          <span>{visibleRowCount} loaded rows</span>
+          <span>{totalRowCount} server rows</span>
+        </div>
+      )}
+    />
+  );
+}
+
+function ServerVirtualizedGroupsExample(args: DataTableProps<AccountRow>) {
+  const [priorityCount, setPriorityCount] = useState(4);
+  const [reviewCount, setReviewCount] = useState(3);
+  const [loadingGroupId, setLoadingGroupId] = useState<string | undefined>();
+  const priorityRows = virtualizedAccounts.slice(0, priorityCount);
+  const reviewRows = virtualizedAccounts.slice(12, 12 + reviewCount);
+  const groupedRows = [...priorityRows, ...reviewRows];
+  const virtualGroups: Array<DataTableGroup<AccountRow>> = [
+    {
+      id: "priority",
+      label: "Priority server group",
+      rowIds: priorityRows.map((row) => row.id),
+      totalCount: 12,
+      loadedCount: priorityRows.length,
+      loadingMore: loadingGroupId === "priority",
+      state: priorityRows.length < 12 ? "partial" : "loaded"
+    },
+    {
+      id: "review",
+      label: "Review server group",
+      rowIds: reviewRows.map((row) => row.id),
+      totalCount: 10,
+      loadedCount: reviewRows.length,
+      loadingMore: loadingGroupId === "review",
+      state: reviewRows.length < 10 ? "partial" : "loaded"
+    }
+  ];
+
+  return (
+    <DataTable
+      {...args}
+      rows={groupedRows}
+      groups={virtualGroups}
+      serverVirtualization={{
+        onGroupEndReached: ({ groupId }) => {
+          if (loadingGroupId) {
+            return;
+          }
+
+          setLoadingGroupId(groupId);
+          window.setTimeout(() => {
+            if (groupId === "priority") {
+              setPriorityCount((current) => Math.min(current + 4, 12));
+            } else {
+              setReviewCount((current) => Math.min(current + 4, 10));
+            }
+            setLoadingGroupId(undefined);
+          }, 400);
+        }
+      }}
+    />
+  );
+}
+
 function ColumnResizingExample(args: DataTableProps<AccountRow>) {
   return (
     <DataTable
@@ -973,6 +1072,48 @@ export const ServerPaginationMetadata: Story = {
     docs: {
       description: {
         story: "Server-owned pagination keeps fetch/page controls in the host application while the table exposes totalRowCount and rowIndexOffset for slot summaries and ARIA row metadata."
+      }
+    }
+  }
+};
+
+export const ServerVirtualizedRows: Story = {
+  render: (args) => <ServerVirtualizedRowsExample {...args} />,
+  args: {
+    rows: virtualizedAccounts.slice(0, 8),
+    columns,
+    getRowId: (row) => row.id,
+    ariaLabel: "Virtualized server account queue",
+    manualSorting: true,
+    manualFiltering: true,
+    height: 420,
+    mobileHeight: 420,
+    rowAriaLabel: (row) => `${row.name}, ${row.status}`
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: "Server virtualization emits range and end-reached signals while the host owns fetching and appends the next result window."
+      }
+    }
+  }
+};
+
+export const ServerVirtualizedGroups: Story = {
+  render: (args) => <ServerVirtualizedGroupsExample {...args} />,
+  args: {
+    rows: virtualizedAccounts.slice(0, 7),
+    columns,
+    getRowId: (row) => row.id,
+    ariaLabel: "Virtualized grouped account queue",
+    height: 420,
+    mobileHeight: 420,
+    rowAriaLabel: (row) => `${row.name}, ${row.status}`
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: "Grouped server virtualization requests additional rows per expanded group and renders inline group loading sentinels."
       }
     }
   }
