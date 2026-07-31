@@ -455,6 +455,31 @@ describe("DataTable", () => {
     expect(onRowClick).toHaveBeenCalledWith(rows[0]);
   });
 
+  it("keeps row actions visible and isolated inside mobile cards", async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        onRowClick={onRowClick}
+        renderRowActions={(row) => <button type="button">Open {row.company}</button>}
+      />
+    );
+
+    const mobileFrame = container.querySelector(".rdtg-mobileFrame") as HTMLElement;
+    const action = within(mobileFrame).getByRole("button", { name: "Open Acme Finance" });
+    expect(action.closest(".rdtg-mobileActions")).not.toBeNull();
+
+    await user.click(action);
+    expect(onRowClick).not.toHaveBeenCalled();
+
+    action.focus();
+    await user.keyboard("[Enter]");
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
   it("exposes grid labels, counts, and virtualized cell positions", () => {
     const { container } = render(
       <DataTable

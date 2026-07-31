@@ -513,6 +513,7 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
         overscan={serverOverscan}
         mobileFrameRef={mobileFrameRef}
         renderCard={renderCard}
+        renderRowActions={renderRowActions}
         columns={visibleColumns}
         icons={mergedIcons}
         editing={editing}

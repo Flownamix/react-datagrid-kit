@@ -29,6 +29,7 @@ export interface DataTableMobileListProps<T> {
   overscan: number;
   mobileFrameRef?: React.MutableRefObject<HTMLDivElement | null>;
   renderCard?: (row: T) => React.ReactNode;
+  renderRowActions?: DataTableProps<T>["renderRowActions"];
   columns: Array<DataTableColumn<T>>;
   icons: DataTableIcons;
   editing: DataTableEditingApi<T>;
@@ -69,6 +70,7 @@ export function DataTableMobileList<T>({
   overscan,
   mobileFrameRef,
   renderCard,
+  renderRowActions,
   columns,
   icons,
   editing,
@@ -177,6 +179,7 @@ export function DataTableMobileList<T>({
                 <MobileVisibleItem
                   item={item}
                   renderCard={renderCard}
+                  renderRowActions={renderRowActions}
                   columns={columns}
                   icons={icons}
                   editing={editing}
@@ -204,6 +207,7 @@ export function DataTableMobileList<T>({
 interface MobileVisibleItemProps<T> {
   item: DataTableVisibleItem<T>;
   renderCard?: (row: T) => React.ReactNode;
+  renderRowActions?: DataTableProps<T>["renderRowActions"];
   columns: Array<DataTableColumn<T>>;
   icons: DataTableIcons;
   editing: DataTableEditingApi<T>;
@@ -227,6 +231,7 @@ interface MobileVisibleItemProps<T> {
 function MobileVisibleItem<T>({
   item,
   renderCard,
+  renderRowActions,
   columns,
   icons,
   editing,
@@ -318,6 +323,11 @@ function MobileVisibleItem<T>({
                       />
                     ))
                 )}
+                {renderRowActions ? (
+                  <div className="rdtg-mobileActions" onClick={(event) => event.stopPropagation()}>
+                    {renderRowActions(row)}
+                  </div>
+                ) : null}
               </article>
             );
 }

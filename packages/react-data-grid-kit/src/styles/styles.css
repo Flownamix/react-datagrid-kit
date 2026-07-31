@@ -1520,6 +1520,18 @@ body[data-rdtg-reorder-dragging="true"] .rdtg-root * {
     display: flex;
   }
 
+  .rdtg-mobileActions {
+    align-items: center;
+    border-top: 1px solid var(--rdtg-color-border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 2px;
+    min-width: 0;
+    padding-top: 10px;
+  }
+
   .rdtg-mobileCard:hover {
     background: var(--rdtg-color-surface-raised);
   }
