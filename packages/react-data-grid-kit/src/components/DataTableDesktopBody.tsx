@@ -12,6 +12,7 @@ const COLLAPSE_EXIT_DURATION = 520;
 
 export interface DataTableDesktopBodyProps<T> {
   columns: Array<DataTableColumn<T>>;
+  detailColumns: Array<DataTableColumn<T>>;
   contentMotionKey: string;
   collapsedGroupIds: Array<string>;
   emptyLabel: string;
@@ -21,6 +22,8 @@ export interface DataTableDesktopBodyProps<T> {
   errorState: DataTableProps<T>["errorState"];
   getRowCanSelect: (rowId: DataTableRowId) => boolean;
   hasActions: boolean;
+  hasExpander: boolean;
+  expandedRowIds: Set<DataTableRowId>;
   icons: DataTableIcons;
   editing: DataTableEditingApi<T>;
   loading: boolean;
@@ -30,11 +33,13 @@ export interface DataTableDesktopBodyProps<T> {
   onGroupToggle: (groupId: string) => void;
   onRowClick: DataTableProps<T>["onRowClick"];
   onRowContextMenu: DataTableProps<T>["onRowContextMenu"];
+  onExpandedChange: (rowId: DataTableRowId) => void;
   onSelectedChange: (rowId: DataTableRowId, checked: boolean) => void;
   pinned: DataTablePinnedLayout;
   renderGroupHeader: DataTableProps<T>["renderGroupHeader"];
   renderLoadMore: NonNullable<DataTableProps<T>["serverVirtualization"]>["renderLoadMore"] | undefined;
   renderRowActions: DataTableProps<T>["renderRowActions"];
+  renderResponsiveDetails: Exclude<DataTableProps<T>["responsiveRows"], boolean | undefined>["renderDetails"] | undefined;
   rowAriaLabel: DataTableProps<T>["rowAriaLabel"];
   selectedIds: Set<string>;
   selectable: boolean;
@@ -44,12 +49,14 @@ export interface DataTableDesktopBodyProps<T> {
   totalColumnCount: number;
   rowIndexOffset: number;
   totalSize: number;
+  measureElement: (element: Element | null) => void;
   visibleItems: Array<DataTableVisibleItem<T>>;
   virtualItems: Array<DataTableVirtualItem>;
 }
 
 export function DataTableDesktopBody<T>({
   columns,
+  detailColumns,
   contentMotionKey,
   collapsedGroupIds,
   emptyLabel,
@@ -59,6 +66,8 @@ export function DataTableDesktopBody<T>({
   errorState,
   getRowCanSelect,
   hasActions,
+  hasExpander,
+  expandedRowIds,
   icons,
   editing,
   loading,
@@ -68,11 +77,13 @@ export function DataTableDesktopBody<T>({
   onGroupToggle,
   onRowClick,
   onRowContextMenu,
+  onExpandedChange,
   onSelectedChange,
   pinned,
   renderGroupHeader,
   renderLoadMore,
   renderRowActions,
+  renderResponsiveDetails,
   rowAriaLabel,
   selectedIds,
   selectable,
@@ -82,6 +93,7 @@ export function DataTableDesktopBody<T>({
   totalColumnCount,
   rowIndexOffset,
   totalSize,
+  measureElement,
   visibleItems,
   virtualItems
 }: DataTableDesktopBodyProps<T>): React.ReactElement {
@@ -110,6 +122,7 @@ export function DataTableDesktopBody<T>({
             return (
               <div
                 key={itemKey}
+                ref={measureElement}
                 className="rdtg-virtualItem"
                 style={{
                   top: `${virtualItem.start}px`,
@@ -143,23 +156,28 @@ export function DataTableDesktopBody<T>({
                     row={item.row}
                     rowId={item.id}
                     columns={columns}
+                    detailColumns={detailColumns}
                     icons={icons}
                     editing={editing}
                     pinned={pinned}
                     template={template}
                     rowIndex={rowIndexOffset + virtualItem.index + 2}
-                    columnStartIndex={selectable ? 2 : 1}
+                    columnStartIndex={(hasExpander ? 1 : 0) + (selectable ? 2 : 1)}
                     totalColumnCount={totalColumnCount}
                     selectable={selectable}
                     rowSelectable={getRowCanSelect(item.id)}
                     selected={selectedIds.has(item.id)}
                     selectionMutable={selectionMutable}
                     hasActions={hasActions}
+                    hasExpander={hasExpander}
+                    expanded={expandedRowIds.has(item.id)}
                     rowAriaLabel={rowAriaLabel}
                     onSelectedChange={onSelectedChange}
                     onRowClick={onRowClick}
                     onRowContextMenu={onRowContextMenu}
+                    onExpandedChange={onExpandedChange}
                     renderRowActions={renderRowActions}
+                    renderResponsiveDetails={renderResponsiveDetails}
                   />
                 )}
               </div>
@@ -180,23 +198,28 @@ export function DataTableDesktopBody<T>({
                 row={exitingRow.item.row}
                 rowId={exitingRow.item.id}
                 columns={columns}
+                detailColumns={detailColumns}
                 icons={icons}
                 editing={editing}
                 pinned={pinned}
                 template={template}
                 rowIndex={rowIndexOffset + exitingRow.index + 2}
-                columnStartIndex={selectable ? 2 : 1}
+                columnStartIndex={(hasExpander ? 1 : 0) + (selectable ? 2 : 1)}
                 totalColumnCount={totalColumnCount}
                 selectable={selectable}
                 rowSelectable={getRowCanSelect(exitingRow.item.id)}
                 selected={selectedIds.has(exitingRow.item.id)}
                 selectionMutable={selectionMutable}
                 hasActions={hasActions}
+                hasExpander={hasExpander}
+                expanded={false}
                 rowAriaLabel={rowAriaLabel}
                 onSelectedChange={onSelectedChange}
                 onRowClick={undefined}
                 onRowContextMenu={undefined}
+                onExpandedChange={() => undefined}
                 renderRowActions={renderRowActions}
+                renderResponsiveDetails={renderResponsiveDetails}
               />
             </div>
           ))}

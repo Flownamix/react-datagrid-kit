@@ -293,6 +293,18 @@ const resizableColumns: Array<DataTableColumn<AccountRow>> = columns.map((column
   maxWidth: column.id === "account" ? 520 : 280
 }));
 
+const responsiveColumns: Array<DataTableColumn<AccountRow>> = columns.map((column) => {
+  const responsive = {
+    account: { responsiveMode: "always" as const, responsivePriority: 0 },
+    status: { responsiveMode: "auto" as const, responsivePriority: 10 },
+    lastActivity: { responsiveMode: "auto" as const, responsivePriority: 20 },
+    owner: { responsiveMode: "auto" as const, responsivePriority: 30 },
+    pipeline: { responsiveMode: "detail-only" as const, responsivePriority: 40 }
+  }[column.id];
+
+  return { ...column, ...responsive };
+});
+
 const meta = {
   title: "Components/DataTable/Enterprise",
   component: DataTable<AccountRow>,
@@ -804,6 +816,27 @@ export const EnterpriseAccounts: Story = {
     rowAriaLabel: (row) => `${row.name}, ${row.status}`,
     renderCard: (row) => <AccountMobileCard row={row} />,
     renderRowActions: (row) => <button className="story-button story-iconButton" type="button" aria-label={`Open ${row.name}`}>...</button>
+  }
+};
+
+export const ResponsiveRowDetails: Story = {
+  args: {
+    rows: accounts,
+    columns: responsiveColumns,
+    getRowId: (row) => row.id,
+    ariaLabel: "Responsive enterprise accounts",
+    responsiveRows: { expansionMode: "multiple" },
+    toolbar: {
+      quickSearch: { placeholder: "Search accounts" },
+      columnVisibility: true
+    },
+    rowAriaLabel: (row) => `${row.name}, ${row.status}`,
+    renderCard: (row) => <AccountMobileCard row={row} />,
+    renderRowActions: (row) => (
+      <button className="story-button story-iconButton" type="button" aria-label={`Open ${row.name}`}>
+        ...
+      </button>
+    )
   }
 };
 

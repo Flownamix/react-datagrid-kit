@@ -499,6 +499,7 @@ export function useDataTableModel<T>({
     getRowCanSelect,
     normalizedCollapsedIds,
     parentRef,
+    measureElement: virtualizer.measureElement,
     renderedVirtualItems,
     selectedSet,
     someVisibleSelected,

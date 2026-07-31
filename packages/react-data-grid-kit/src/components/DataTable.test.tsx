@@ -3038,4 +3038,205 @@ describe("DataTable", () => {
     expect(within(mobileFrame as HTMLElement).getByRole("checkbox", { name: "Select row 1" })).toBeChecked();
     expect(within(mobileFrame as HTMLElement).getByText("Acme Finance")).toBeInTheDocument();
   });
+
+  it("moves lower-priority columns into expandable responsive row details", async () => {
+    const user = userEvent.setup();
+    const responsiveColumns: Array<DataTableColumn<Row>> = [
+      {
+        id: "company",
+        header: "Company",
+        width: "160px",
+        responsiveMode: "always",
+        renderCell: (row) => row.company
+      },
+      {
+        id: "score",
+        header: "Score",
+        width: "120px",
+        responsivePriority: 10,
+        renderCell: (row) => row.score
+      },
+      {
+        id: "owner",
+        header: "Owner",
+        detailLabel: "Account owner",
+        width: "140px",
+        responsivePriority: 20,
+        renderCell: (row) => row.owner
+      }
+    ];
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={responsiveColumns}
+        getRowId={(row) => row.id}
+        ariaLabel="Responsive accounts"
+        responsiveRows
+      />
+    );
+    const desktopFrame = container.querySelector(".rdtg-desktopFrame") as HTMLElement;
+    mockClientRect(desktopFrame, { left: 0, width: 260 });
+    fireEvent(window, new Event("resize"));
+
+    await waitFor(() => expect(within(desktopFrame).getAllByRole("button", { name: "Expand row details" })).toHaveLength(2));
+    expect(within(desktopFrame).queryByRole("columnheader", { name: "Score" })).not.toBeInTheDocument();
+    expect(within(desktopFrame).queryByRole("columnheader", { name: "Owner" })).not.toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: "Responsive accounts" })).toHaveAttribute("aria-colcount", "2");
+
+    await user.click(within(desktopFrame).getAllByRole("button", { name: "Expand row details" })[0]!);
+    const details = within(desktopFrame).getByRole("region", { name: "Additional row details" });
+    expect(within(details).getByText("Score")).toBeInTheDocument();
+    expect(within(details).getByText("92")).toBeInTheDocument();
+    expect(within(details).getByText("Account owner")).toBeInTheDocument();
+    expect(within(details).getByText("Nandi")).toBeInTheDocument();
+    expect(within(desktopFrame).getAllByRole("button", { name: "Collapse row details" })[0]).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("supports row activation, multiple expansion, and interactive-control isolation", async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    const responsiveColumns: Array<DataTableColumn<Row>> = [
+      {
+        id: "company",
+        header: "Company",
+        width: "160px",
+        responsiveMode: "always",
+        renderCell: (row) => <button type="button">Contact {row.company}</button>
+      },
+      {
+        id: "owner",
+        header: "Owner",
+        width: "160px",
+        responsiveMode: "detail-only",
+        renderCell: (row) => row.owner
+      }
+    ];
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={responsiveColumns}
+        getRowId={(row) => row.id}
+        onRowClick={onRowClick}
+        responsiveRows={{ expansionMode: "multiple" }}
+      />
+    );
+    const desktopFrame = container.querySelector(".rdtg-desktopFrame") as HTMLElement;
+    mockClientRect(desktopFrame, { left: 0, width: 420 });
+    fireEvent(window, new Event("resize"));
+
+    await user.click(within(desktopFrame).getByRole("button", { name: "Contact Acme Finance" }));
+    expect(onRowClick).not.toHaveBeenCalled();
+    expect(within(desktopFrame).queryByRole("region", { name: "Additional row details" })).not.toBeInTheDocument();
+
+    const tableRows = within(desktopFrame).getAllByRole("row").filter((row) => row.classList.contains("rdtg-row"));
+    await user.click(tableRows[0]!);
+    await user.click(tableRows[1]!);
+    expect(onRowClick).toHaveBeenCalledTimes(2);
+    expect(within(desktopFrame).getAllByRole("region", { name: "Additional row details" })).toHaveLength(2);
+  });
+
+  it("supports controlled single-row expansion", async () => {
+    const user = userEvent.setup();
+    const responsiveColumns: Array<DataTableColumn<Row>> = [
+      {
+        id: "company",
+        header: "Company",
+        width: "160px",
+        responsiveMode: "always",
+        renderCell: (row) => row.company
+      },
+      {
+        id: "owner",
+        header: "Owner",
+        width: "160px",
+        responsiveMode: "detail-only",
+        renderCell: (row) => row.owner
+      }
+    ];
+
+    function ControlledTable() {
+      const [expandedRowIds, setExpandedRowIds] = React.useState<Array<string>>(["1"]);
+      return (
+        <DataTable
+          rows={rows}
+          columns={responsiveColumns}
+          getRowId={(row) => row.id}
+          responsiveRows={{ expansionMode: "single" }}
+          expandedRowIds={expandedRowIds}
+          onExpandedRowIdsChange={setExpandedRowIds}
+        />
+      );
+    }
+
+    const { container } = render(<ControlledTable />);
+    const desktopFrame = container.querySelector(".rdtg-desktopFrame") as HTMLElement;
+    mockClientRect(desktopFrame, { left: 0, width: 420 });
+    fireEvent(window, new Event("resize"));
+
+    await waitFor(() => expect(within(desktopFrame).getByText("Nandi")).toBeInTheDocument());
+    await user.click(within(desktopFrame).getAllByRole("button", { name: "Expand row details" })[0]!);
+
+    expect(within(desktopFrame).queryByText("Nandi")).not.toBeInTheDocument();
+    expect(within(desktopFrame).getByText("Karel")).toBeInTheDocument();
+    expect(within(desktopFrame).getAllByRole("region", { name: "Additional row details" })).toHaveLength(1);
+  });
+
+  it("prunes expanded row ids when their rows are removed", async () => {
+    const onExpandedRowIdsChange = vi.fn();
+    const responsiveColumns: Array<DataTableColumn<Row>> = [
+      { ...columns[0]!, responsiveMode: "always", width: "160px" },
+      { ...columns[1]!, responsiveMode: "detail-only" }
+    ];
+    const { container, rerender } = render(
+      <DataTable
+        rows={rows}
+        columns={responsiveColumns}
+        getRowId={(row) => row.id}
+        defaultExpandedRowIds={["1", "2"]}
+        onExpandedRowIdsChange={onExpandedRowIdsChange}
+        responsiveRows
+      />
+    );
+    const desktopFrame = container.querySelector(".rdtg-desktopFrame") as HTMLElement;
+    mockClientRect(desktopFrame, { left: 0, width: 420 });
+    fireEvent(window, new Event("resize"));
+
+    await waitFor(() => expect(within(desktopFrame).getAllByRole("region", { name: "Additional row details" })).toHaveLength(2));
+    rerender(
+      <DataTable
+        rows={[rows[0]!]}
+        columns={responsiveColumns}
+        getRowId={(row) => row.id}
+        defaultExpandedRowIds={["1", "2"]}
+        onExpandedRowIdsChange={onExpandedRowIdsChange}
+        responsiveRows
+      />
+    );
+
+    await waitFor(() => expect(onExpandedRowIdsChange).toHaveBeenLastCalledWith(["1"]));
+    expect(within(desktopFrame).getAllByRole("region", { name: "Additional row details" })).toHaveLength(1);
+  });
+
+  it("keeps manually hidden columns out of responsive details", async () => {
+    const responsiveColumns: Array<DataTableColumn<Row>> = [
+      { ...columns[0]!, responsiveMode: "always", width: "160px" },
+      { ...columns[1]!, responsiveMode: "detail-only", detailLabel: "Hidden score" }
+    ];
+    const { container } = render(
+      <DataTable
+        rows={rows}
+        columns={responsiveColumns}
+        getRowId={(row) => row.id}
+        columnVisibility={{ score: false }}
+        responsiveRows
+      />
+    );
+    const desktopFrame = container.querySelector(".rdtg-desktopFrame") as HTMLElement;
+    mockClientRect(desktopFrame, { left: 0, width: 280 });
+    fireEvent(window, new Event("resize"));
+
+    await waitFor(() => expect(within(desktopFrame).queryByRole("button", { name: "Expand row details" })).not.toBeInTheDocument());
+    expect(within(desktopFrame).queryByText("Hidden score")).not.toBeInTheDocument();
+    expect(within(desktopFrame).queryByText("92")).not.toBeInTheDocument();
+  });
 });

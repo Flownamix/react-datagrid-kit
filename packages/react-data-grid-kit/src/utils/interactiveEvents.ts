@@ -29,5 +29,5 @@ function targetIsInteractive(target: EventTarget, currentTarget: HTMLElement): b
   }
 
   const interactiveElement = target.closest(INTERACTIVE_SELECTOR);
-  return Boolean(interactiveElement && currentTarget.contains(interactiveElement));
+  return Boolean(interactiveElement && interactiveElement !== currentTarget && currentTarget.contains(interactiveElement));
 }

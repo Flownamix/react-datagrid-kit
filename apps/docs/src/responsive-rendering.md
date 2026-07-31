@@ -2,6 +2,52 @@
 
 `DataTable` renders a desktop grid and a virtualized mobile list from the same modeled data. Desktop uses grid roles, sticky headers, virtualization, pinned columns, resize handles, and keyboard cell navigation. Mobile uses list semantics with either built-in fields or app-owned cards.
 
+## Expandable Responsive Rows
+
+Enable `responsiveRows` to keep the desktop grid within its measured container. Columns that no longer fit move into an expandable detail panel instead of creating horizontal scrolling. The mobile card surface at 720px and below is unchanged.
+
+```tsx
+const columns: Array<DataTableColumn<Account>> = [
+  {
+    id: "name",
+    header: "Account",
+    responsiveMode: "always",
+    renderCell: (row) => row.name
+  },
+  {
+    id: "status",
+    header: "Status",
+    responsivePriority: 10,
+    renderCell: (row) => row.status
+  },
+  {
+    id: "metadata",
+    header: "Metadata",
+    detailLabel: "Additional metadata",
+    responsiveMode: "detail-only",
+    renderCell: (row) => row.metadata
+  }
+];
+
+<DataTable
+  rows={rows}
+  columns={columns}
+  getRowId={(row) => row.id}
+  responsiveRows={{ expansionMode: "multiple" }}
+  renderRowActions={(row) => <AccountActions row={row} />}
+/>
+```
+
+- `responsiveMode="always"` protects primary data and operational controls.
+- `responsiveMode="auto"` is the default. Lower `responsivePriority` values remain visible longer.
+- `responsiveMode="detail-only"` always places supporting data in the detail panel.
+- Pinned automatic columns receive preference, but only `always` is a hard guarantee.
+- Manually hidden columns stay hidden and do not appear in details.
+- `expandedRowIds`, `defaultExpandedRowIds`, and `onExpandedRowIdsChange` support saved or controlled expansion state.
+- `renderDetails` can replace the default label/value layout when a domain-specific detail panel is required.
+
+Rows and their leading chevron both toggle details. Native interactive descendants keep ownership of pointer and keyboard events. Multiple expansion is the default; set `expansionMode: "single"` for accordion behavior.
+
 ## Built-In Mobile Fields
 
 If you do not pass `renderCard`, the mobile view renders visible columns as labelled fields.
@@ -91,7 +137,7 @@ Use `height` for the desktop scroll frame and `mobileHeight` for the mobile list
 
 Use `rowHeight` and `groupHeight` when custom row templates or group headers need more or less vertical space. For dense work queues, pair `density="compact"` with a tested `rowHeight` so content does not clip.
 
-Use `minWidth` to control when the desktop grid becomes horizontally scrollable. This is especially important when using pinned columns or many fixed-width columns.
+Without `responsiveRows`, use `minWidth` to control when the desktop grid becomes horizontally scrollable. With responsive rows enabled, the table uses the container width and moves lower-priority columns into details instead.
 
 ## Grouped Mobile Data
 

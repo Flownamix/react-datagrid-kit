@@ -56,6 +56,10 @@ Core integration props:
 - `emptyState?: DataTableStateLabel`
 - `errorState?: DataTableStateLabel`
 - `renderRowActions?: (row: T) => ReactNode`
+- `responsiveRows?: boolean | { expansionMode?: "single" | "multiple"; renderDetails?: (context) => ReactNode }`
+- `expandedRowIds?: string[]`
+- `defaultExpandedRowIds?: string[]`
+- `onExpandedRowIdsChange?: (rowIds: string[]) => void`
 - `renderCard?: (row: T) => ReactNode`
 - `toolbar?: boolean | DataTableToolbarConfig<T>`
 - `renderToolbar?: (context) => ReactNode`
@@ -95,6 +99,7 @@ Selection behavior:
 Row activation behavior:
 
 - `onRowClick` makes desktop rows and mobile cards keyboard reachable with Enter and Space activation.
+- With `responsiveRows`, activating a non-interactive part of the desktop row also toggles its detail panel. Multiple rows may be expanded by default; use `expansionMode: "single"` for accordion behavior.
 - Native interactive descendants such as buttons, links, inputs, selects, and textareas do not bubble into row activation.
 - Common ARIA interactive roles and focusable custom controls are also treated as row-activation boundaries.
 - Add `data-rdtg-stop-row-click` to custom composite widgets inside cells or cards when the widget should fully own pointer and keyboard events.
@@ -271,6 +276,9 @@ Sorting behavior:
 - `className?: string | ((row: T) => string | undefined)`
 - `align?: "start" | "center" | "end"`
 - `hideOnMobile?: boolean`
+- `responsiveMode?: "always" | "auto" | "detail-only"`
+- `responsivePriority?: number`
+- `detailLabel?: ReactNode`
 
 Column notes:
 
@@ -279,6 +287,9 @@ Column notes:
 - `align` affects both header and cell alignment.
 - `className` is applied to desktop data cells for that column. Use it for narrow semantic styling hooks, not domain layout.
 - `hideOnMobile` removes the column from the built-in mobile field layout. It does not affect custom `renderCard` content.
+- `responsiveMode="always"` keeps the column in the responsive summary row. `detail-only` always moves it into details, and `auto` participates in container packing.
+- Lower `responsivePriority` values are retained before higher values. Equal priorities preserve the current visible column order, while pinned automatic columns receive preference.
+- `detailLabel` replaces the header only in the default expanded label/value panel.
 
 Filter render functions receive `{ value, filters, setFilter, clearFilter, close }`. Values can store date ranges, server facet objects, saved-view IDs, or multi-field query models instead of being limited to predefined option lists.
 

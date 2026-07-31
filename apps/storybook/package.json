@@ -1,7 +1,7 @@
 {
   "name": "@flownamix/react-data-grid-kit-storybook",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "storybook": "storybook dev -p 6006 --host 127.0.0.1",

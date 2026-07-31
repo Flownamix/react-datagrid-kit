@@ -49,6 +49,7 @@ interface ColumnDropTarget {
 export interface DataTableHeaderProps<T> {
   columns: Array<DataTableColumn<T>>;
   icons: DataTableIcons;
+  hasExpander: boolean;
   selectable: boolean;
   hasActions: boolean;
   totalColumnCount: number;
@@ -73,6 +74,7 @@ export interface DataTableHeaderProps<T> {
 export function DataTableHeader<T>({
   columns,
   icons,
+  hasExpander,
   selectable,
   hasActions,
   totalColumnCount,
@@ -196,11 +198,25 @@ export function DataTableHeader<T>({
   return (
     <div className="rdtg-header" role="rowgroup" data-reorder-dragging={activeDragSession ? "true" : undefined}>
       <div className="rdtg-headerRow" role="row" aria-rowindex={1} style={{ gridTemplateColumns: template }}>
+        {hasExpander ? (
+          <div
+            className="rdtg-headerCell rdtg-expanderCell"
+            role="columnheader"
+            aria-label="Row details"
+            aria-colindex={1}
+            data-rdtg-grid-cell="true"
+            data-pinned={pinned.expander ? "true" : undefined}
+            data-pin-side={pinned.expander?.side}
+            data-pin-edge={pinned.expander?.edge ? "true" : undefined}
+            tabIndex={-1}
+            style={pinnedCellStyle(pinned.expander)}
+          />
+        ) : null}
         {selectable ? (
           <div
             className="rdtg-headerCell rdtg-selectionCell"
             role="columnheader"
-            aria-colindex={1}
+            aria-colindex={hasExpander ? 2 : 1}
             data-rdtg-grid-cell="true"
             data-pinned={pinned.selection ? "true" : undefined}
             data-pin-side={pinned.selection?.side}
@@ -220,7 +236,7 @@ export function DataTableHeader<T>({
         {columns.map((column, columnIndex) => {
           const sortingEnabled = Boolean(column.sortable && (manualSorting || column.sortAccessor));
           const direction = sortingEnabled && sort?.columnId === column.id ? sort.direction : "none";
-          const ariaColumnIndex = columnIndex + (selectable ? 2 : 1);
+          const ariaColumnIndex = columnIndex + (hasExpander ? 1 : 0) + (selectable ? 2 : 1);
           const pinnedCell = pinned.columns[column.id];
           const reorderable = enableColumnReordering && column.reorderable !== false;
           const target = dropTarget?.columnId === column.id ? dropTarget : undefined;

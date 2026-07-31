@@ -69,6 +69,22 @@ application, while `totalRowCount` and `rowIndexOffset` let render slots and
 desktop ARIA metadata describe the full result set instead of only the loaded
 page.
 
+## Responsive Row Details
+
+Set `responsiveRows` to make the desktop surface fit its actual container without horizontal scrolling. Columns use `responsiveMode` and `responsivePriority` to determine which values remain in the summary row and which move into the accessible expandable panel. The existing mobile card view remains active at 720px and below.
+
+```tsx
+<DataTable
+  rows={rows}
+  columns={columns}
+  getRowId={(row) => row.id}
+  responsiveRows={{ expansionMode: "multiple" }}
+  renderRowActions={(row) => <RowActions row={row} />}
+/>
+```
+
+Use `responsiveMode: "always"` for the primary identity and operational controls, numeric priorities for task-relevant fields, and `responsiveMode: "detail-only"` for verbose supporting metadata. Manually hidden columns remain hidden rather than moving into the detail panel.
+
 ## Exports
 
 ```ts

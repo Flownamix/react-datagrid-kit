@@ -4,6 +4,8 @@ export type DataTableRowId = string;
 export type DataTableSortDirection = "ascending" | "descending";
 export type DataTableDensity = "compact" | "comfortable";
 export type DataTableMotionPreference = "system" | "always" | "reduced";
+export type DataTableResponsiveMode = "always" | "auto" | "detail-only";
+export type DataTableResponsiveExpansionMode = "single" | "multiple";
 export type DataTableGroupState = "loaded" | "loading" | "error" | "empty" | "partial";
 export type DataTableFilterState = Record<string, unknown>;
 export type DataTableQuickSearchUpdater = string | ((current: string) => string);
@@ -115,6 +117,23 @@ export interface DataTableColumn<T> {
   className?: string | ((row: T) => string | undefined);
   align?: "start" | "center" | "end";
   hideOnMobile?: boolean;
+  /** Controls whether this column stays in the summary row or moves into responsive row details. */
+  responsiveMode?: DataTableResponsiveMode;
+  /** Lower values remain visible longer when the grid narrows. Defaults to 100. */
+  responsivePriority?: number;
+  /** Optional concise label used for this value inside responsive row details. */
+  detailLabel?: React.ReactNode;
+}
+
+export interface DataTableResponsiveDetailsContext<T> {
+  row: T;
+  rowId: DataTableRowId;
+  columns: Array<DataTableColumn<T>>;
+}
+
+export interface DataTableResponsiveRowsConfig<T> {
+  expansionMode?: DataTableResponsiveExpansionMode;
+  renderDetails?: (context: DataTableResponsiveDetailsContext<T>) => React.ReactNode;
 }
 
 export interface DataTableGroupSummary<T> {
@@ -349,6 +368,10 @@ export interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   onRowContextMenu?: (row: T, event: React.MouseEvent<HTMLElement>) => void;
   renderRowActions?: (row: T) => React.ReactNode;
+  responsiveRows?: boolean | DataTableResponsiveRowsConfig<T>;
+  expandedRowIds?: Array<DataTableRowId>;
+  defaultExpandedRowIds?: Array<DataTableRowId>;
+  onExpandedRowIdsChange?: (rowIds: Array<DataTableRowId>) => void;
   renderCard?: (row: T) => React.ReactNode;
   toolbar?: boolean | DataTableToolbarConfig<T>;
   renderToolbar?: (context: DataTableRenderContext<T>) => React.ReactNode;

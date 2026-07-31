@@ -1,5 +1,6 @@
 import type * as React from "react";
 import type { DataTableColumn, DataTableColumnPinningState, DataTableColumnSizingState } from "../types";
+import { RESPONSIVE_ACTION_SIZE, RESPONSIVE_EXPANDER_SIZE } from "./responsiveLayout";
 
 const DEFAULT_COLUMN_TRACK = "minmax(140px, 1fr)";
 const DEFAULT_COLUMN_SIZE = 160;
@@ -16,6 +17,7 @@ export interface DataTablePinnedCellMeta {
 
 export interface DataTablePinnedLayout {
   columns: Record<string, DataTablePinnedCellMeta>;
+  expander?: DataTablePinnedCellMeta;
   selection?: DataTablePinnedCellMeta;
   actions?: DataTablePinnedCellMeta;
 }
@@ -87,12 +89,14 @@ export function pinnedLayout<T>({
   columns,
   selectable,
   hasActions,
+  hasExpander = false,
   columnSizing,
   columnPinning
 }: {
   columns: Array<DataTableColumn<T>>;
   selectable: boolean;
   hasActions: boolean;
+  hasExpander?: boolean;
   columnSizing: DataTableColumnSizingState;
   columnPinning: DataTableColumnPinningState;
 }): DataTablePinnedLayout {
@@ -107,11 +111,17 @@ export function pinnedLayout<T>({
     .filter((column): column is DataTableColumn<T> => Boolean(column));
   const layout: DataTablePinnedLayout = { columns: {} };
 
-  if (leftColumns.length > 0 && selectable) {
-    layout.selection = { side: "left", offset: 0 };
+  if (leftColumns.length > 0 && hasExpander) {
+    layout.expander = { side: "left", offset: 0 };
   }
 
-  let leftOffset = leftColumns.length > 0 && selectable ? SELECTION_COLUMN_SIZE : 0;
+  if (leftColumns.length > 0 && selectable) {
+    layout.selection = { side: "left", offset: hasExpander ? RESPONSIVE_EXPANDER_SIZE : 0 };
+  }
+
+  let leftOffset = leftColumns.length > 0
+    ? (hasExpander ? RESPONSIVE_EXPANDER_SIZE : 0) + (selectable ? SELECTION_COLUMN_SIZE : 0)
+    : 0;
   leftColumns.forEach((column, index) => {
     layout.columns[column.id] = {
       side: "left",
@@ -125,7 +135,9 @@ export function pinnedLayout<T>({
     layout.actions = { side: "right", offset: 0 };
   }
 
-  let rightOffset = rightColumns.length > 0 && hasActions ? ACTION_COLUMN_SIZE : 0;
+  let rightOffset = rightColumns.length > 0 && hasActions
+    ? (hasExpander ? RESPONSIVE_ACTION_SIZE : ACTION_COLUMN_SIZE)
+    : 0;
   [...rightColumns].reverse().forEach((column, index) => {
     layout.columns[column.id] = {
       side: "right",

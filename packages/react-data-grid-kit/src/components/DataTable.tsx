@@ -3,6 +3,7 @@ import { defaultIcons } from "../icons";
 import { moveColumnInOrder, type ColumnDropPlacement } from "../model/columnOrdering";
 import { isColumnEditable } from "../model/editing";
 import { gridTemplate, pinnedLayout } from "../model/layout";
+import { responsiveColumnLayout, responsiveGridTemplate } from "../model/responsiveLayout";
 import { nextSort } from "../model/sorting";
 import type { DataTableIcons, DataTableProps, DataTableRenderContext } from "../types";
 import { cx } from "../utils/cx";
@@ -14,6 +15,7 @@ import { DataTableHeader } from "./DataTableHeader";
 import { DataTableMobileList } from "./DataTableMobileList";
 import { DataTableToolbar } from "./DataTableToolbar";
 import type { DataTableVirtualSurface, DataTableVisibleItem } from "../types";
+import { useControllableArrayState } from "../utils/controllable";
 
 const DEFAULT_ROW_HEIGHT = 56;
 const DEFAULT_GROUP_HEIGHT = 48;
@@ -80,6 +82,10 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
     onRowClick,
     onRowContextMenu,
     renderRowActions,
+    responsiveRows,
+    expandedRowIds,
+    defaultExpandedRowIds,
+    onExpandedRowIdsChange,
     renderCard,
     toolbar,
     renderToolbar,
@@ -133,6 +139,7 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
     handleSortChange,
     normalizedCollapsedIds,
     parentRef,
+    measureElement,
     renderedVirtualItems,
     selectedSet,
     someVisibleSelected,
@@ -182,26 +189,92 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
     rowHeight,
     groupHeight
   });
-  const totalColumnCount = visibleColumns.length + (selectable ? 1 : 0) + (hasActions ? 1 : 0);
   const [mobileVirtualItems, setMobileVirtualItems] = React.useState<Array<DataTableVirtualItem>>([]);
   const mobileFrameRef = React.useRef<HTMLDivElement | null>(null);
+  const [desktopFrame, setDesktopFrameNode] = React.useState<HTMLDivElement | null>(null);
+  const desktopWidth = useObservedElementWidth(desktopFrame);
+  const responsiveEnabled = Boolean(responsiveRows);
+  const responsiveConfig = typeof responsiveRows === "object" ? responsiveRows : undefined;
+  const responsiveLayout = React.useMemo(() => responsiveColumnLayout({
+    columns: visibleColumns,
+    availableWidth: desktopWidth,
+    columnSizing: currentColumnSizing,
+    columnPinning: currentColumnPinning,
+    selectable,
+    hasActions,
+    enabled: responsiveEnabled
+  }), [
+    currentColumnPinning,
+    currentColumnSizing,
+    desktopWidth,
+    hasActions,
+    responsiveEnabled,
+    selectable,
+    visibleColumns
+  ]);
+  const summaryColumns = responsiveLayout.summaryColumns;
+  const detailColumns = responsiveLayout.detailColumns;
+  const hasExpander = responsiveLayout.hasExpander;
+  const totalColumnCount = summaryColumns.length
+    + (hasExpander ? 1 : 0)
+    + (selectable ? 1 : 0)
+    + (hasActions ? 1 : 0);
+  const [currentExpandedRowIds, setExpandedRowIds] = useControllableArrayState({
+    value: expandedRowIds,
+    defaultValue: defaultExpandedRowIds ?? [],
+    onChange: onExpandedRowIdsChange
+  });
+  const validRowIds = React.useMemo(() => new Set([
+    ...rows.map(getRowId),
+    ...(groups ?? []).flatMap((group) => (group.rows ?? []).map(getRowId))
+  ]), [getRowId, groups, rows]);
+  const normalizedExpandedRowIds = React.useMemo(
+    () => currentExpandedRowIds.filter((rowId, index, values) => validRowIds.has(rowId) && values.indexOf(rowId) === index),
+    [currentExpandedRowIds, validRowIds]
+  );
+  React.useEffect(() => {
+    if (normalizedExpandedRowIds.length !== currentExpandedRowIds.length) {
+      setExpandedRowIds(normalizedExpandedRowIds);
+    }
+  }, [currentExpandedRowIds.length, normalizedExpandedRowIds, setExpandedRowIds]);
+  const expandedRowIdSet = React.useMemo(() => new Set(normalizedExpandedRowIds), [normalizedExpandedRowIds]);
+  const handleExpandedChange = React.useCallback((rowId: string) => {
+    setExpandedRowIds((current) => {
+      const normalizedCurrent = current.filter((candidate) => validRowIds.has(candidate));
+      if (normalizedCurrent.includes(rowId)) {
+        return normalizedCurrent.filter((candidate) => candidate !== rowId);
+      }
+
+      return responsiveConfig?.expansionMode === "single" ? [rowId] : [...normalizedCurrent, rowId];
+    });
+  }, [responsiveConfig?.expansionMode, setExpandedRowIds, validRowIds]);
   const activeSurface = useActiveDataTableSurface(parentRef, mobileFrameRef);
   const template = React.useMemo(
-    () => gridTemplate({ columns: visibleColumns, selectable, hasActions, columnSizing: currentColumnSizing }),
-    [currentColumnSizing, hasActions, selectable, visibleColumns]
+    () => responsiveEnabled
+      ? responsiveGridTemplate({
+        columns: summaryColumns,
+        selectable,
+        hasActions,
+        hasExpander,
+        columnSizing: currentColumnSizing
+      })
+      : gridTemplate({ columns: summaryColumns, selectable, hasActions, columnSizing: currentColumnSizing }),
+    [currentColumnSizing, hasActions, hasExpander, responsiveEnabled, selectable, summaryColumns]
   );
   const pinned = React.useMemo(
     () => pinnedLayout({
-      columns: visibleColumns,
+      columns: summaryColumns,
       selectable,
       hasActions,
+      hasExpander,
       columnSizing: currentColumnSizing,
       columnPinning: currentColumnPinning
     }),
-    [currentColumnPinning, currentColumnSizing, hasActions, selectable, visibleColumns]
+    [currentColumnPinning, currentColumnSizing, hasActions, hasExpander, selectable, summaryColumns]
   );
   const setDesktopFrame = React.useCallback((node: HTMLDivElement | null) => {
     parentRef.current = node;
+    setDesktopFrameNode(node);
   }, [parentRef]);
   const handleColumnReorder = React.useCallback((sourceId: string, targetId: string, placement: ColumnDropPlacement) => {
     handleColumnOrderChange((current) => moveColumnInOrder({
@@ -214,7 +287,7 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
   }, [columns, handleColumnOrderChange]);
   const pageRowStep = Math.max(1, Math.floor(height / Math.max(rowHeight, 1)) - 1);
   const keyboardNavigation = useDataTableKeyboardNavigation({
-    columns: visibleColumns,
+    columns: summaryColumns,
     visibleItems,
     editing,
     pageRowStep
@@ -232,7 +305,7 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
       return;
     }
 
-    const editedColumn = visibleColumns.find((column) => column.id === editedCell.columnId);
+    const editedColumn = summaryColumns.find((column) => column.id === editedCell.columnId);
     const editedItem = visibleItems.find((item) => item.kind === "row" && item.id === editedCell.rowId);
     if (!editedColumn || !editedItem || editedItem.kind !== "row") {
       editing.resetEditing();
@@ -242,7 +315,7 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
     if (!isColumnEditable(editedColumn, editedItem.row, editedCell.rowId)) {
       editing.resetEditing();
     }
-  }, [editing, visibleColumns, visibleItems]);
+  }, [editing, summaryColumns, visibleItems]);
   const loadedRowCount = visibleRowsForContext.length;
   const resolvedTotalRowCount = Math.max(totalRowCount ?? loadedRowCount, loadedRowCount);
   const normalizedRowIndexOffset = Math.max(0, rowIndexOffset);
@@ -333,6 +406,7 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
         "--rdtg-group-height": `${groupHeight}px`
       } as React.CSSProperties}
       {...dataAttributes}
+      data-responsive-rows={responsiveEnabled ? "true" : undefined}
     >
       {toolbar ? (
         <DataTableToolbar config={toolbar === true ? true : toolbar} context={renderContext} />
@@ -358,12 +432,13 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
           }}
           onKeyDownCapture={keyboardNavigation.onGridKeyDown}
           style={{
-            minWidth
+            minWidth: responsiveEnabled ? "100%" : minWidth
           } as React.CSSProperties}
         >
           <DataTableHeader
-            columns={visibleColumns}
+            columns={summaryColumns}
             icons={mergedIcons}
+            hasExpander={hasExpander}
             selectable={selectable}
             hasActions={hasActions}
             totalColumnCount={totalColumnCount}
@@ -385,7 +460,8 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
             onSelectAll={handleSelectAll}
           />
           <DataTableDesktopBody
-            columns={visibleColumns}
+            columns={summaryColumns}
+            detailColumns={detailColumns}
             contentMotionKey={contentMotionKey}
             collapsedGroupIds={normalizedCollapsedIds}
             emptyLabel={emptyLabel}
@@ -395,6 +471,8 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
             errorState={errorState}
             getRowCanSelect={getRowCanSelect}
             hasActions={hasActions}
+            hasExpander={hasExpander}
+            expandedRowIds={expandedRowIdSet}
             icons={mergedIcons}
             editing={editing}
             totalColumnCount={totalColumnCount}
@@ -406,11 +484,13 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
             onGroupToggle={handleGroupToggle}
             onRowClick={onRowClick}
             onRowContextMenu={onRowContextMenu}
+            onExpandedChange={handleExpandedChange}
             onSelectedChange={handleRowSelection}
             pinned={pinned}
             renderGroupHeader={renderGroupHeader}
             renderLoadMore={serverVirtualization?.renderLoadMore}
             renderRowActions={renderRowActions}
+            renderResponsiveDetails={responsiveConfig?.renderDetails}
             rowAriaLabel={rowAriaLabel}
             selectedIds={selectedSet}
             selectable={selectable}
@@ -418,6 +498,7 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
             showEmpty={showEmpty}
             template={template}
             totalSize={totalSize}
+            measureElement={measureElement}
             visibleItems={visibleItems}
             virtualItems={renderedVirtualItems}
           />
@@ -469,6 +550,33 @@ export function DataTable<T>(props: DataTableProps<T>): React.ReactElement {
 
 function hasOwnProp<T extends object, K extends PropertyKey>(value: T, key: K): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function useObservedElementWidth(element: HTMLElement | null): number {
+  const [width, setWidth] = React.useState(0);
+
+  React.useLayoutEffect(() => {
+    if (!element) {
+      return undefined;
+    }
+
+    const updateWidth = () => {
+      const nextWidth = Math.max(0, Math.floor(element.getBoundingClientRect().width || element.clientWidth));
+      setWidth((current) => current === nextWidth ? current : nextWidth);
+    };
+    updateWidth();
+
+    if (typeof ResizeObserver !== "function") {
+      window.addEventListener("resize", updateWidth);
+      return () => window.removeEventListener("resize", updateWidth);
+    }
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element]);
+
+  return width;
 }
 
 function useActiveDataTableSurface(
